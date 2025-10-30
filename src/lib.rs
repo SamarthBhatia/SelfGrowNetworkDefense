@@ -6,5 +6,5 @@ pub mod orchestration;
 pub mod signaling;
 pub mod telemetry;
 
-pub use config::{ConfigError, ScenarioConfig};
+pub use config::{ConfigError, ScenarioConfig, ThreatSpike};
 pub use orchestration::MorphogeneticApp;

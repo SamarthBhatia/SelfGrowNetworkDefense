@@ -16,6 +16,8 @@ pub struct ScenarioConfig {
     pub simulation_steps: u32,
     #[serde(default)]
     pub threat_profile: ThreatProfile,
+    #[serde(default)]
+    pub spikes: Vec<ThreatSpike>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,6 +44,7 @@ impl Default for ScenarioConfig {
             initial_cell_count: default_initial_cells(),
             simulation_steps: default_simulation_steps(),
             threat_profile: ThreatProfile::default(),
+            spikes: Vec::new(),
         }
     }
 }
@@ -64,6 +67,12 @@ fn default_background_threat() -> f32 {
 
 fn default_spike_threshold() -> f32 {
     0.8
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct ThreatSpike {
+    pub step: u32,
+    pub intensity: f32,
 }
 
 #[derive(Debug)]
@@ -114,6 +123,19 @@ pub fn load_from_reader<R: Read>(mut reader: R) -> Result<ScenarioConfig, Config
     Ok(config)
 }
 
+impl ScenarioConfig {
+    #[allow(dead_code)]
+    pub fn threat_level_for_step(&self, step: u32) -> f32 {
+        let mut threat = self.threat_profile.background_threat;
+        for spike in &self.spikes {
+            if spike.step == step {
+                threat += spike.intensity;
+            }
+        }
+        threat.max(0.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,5 +166,23 @@ threat_profile:
         assert_eq!(config.simulation_steps, 5);
         assert!((config.threat_profile.background_threat - 0.3).abs() < f32::EPSILON);
         assert!((config.threat_profile.spike_threshold - 0.6).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn threat_schedule_adds_spikes_on_matching_steps() {
+        let yaml = r#"
+threat_profile:
+  background_threat: 0.2
+spikes:
+  - step: 1
+    intensity: 0.3
+  - step: 3
+    intensity: 0.5
+"#;
+        let config = load_from_reader(yaml.as_bytes()).expect("config should parse");
+        assert!((config.threat_level_for_step(0) - 0.2).abs() < f32::EPSILON);
+        assert!((config.threat_level_for_step(1) - 0.5).abs() < f32::EPSILON);
+        assert!((config.threat_level_for_step(2) - 0.2).abs() < f32::EPSILON);
+        assert!((config.threat_level_for_step(3) - 0.7).abs() < f32::EPSILON);
     }
 }

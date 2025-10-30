@@ -26,10 +26,15 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
     #[allow(dead_code)]
     pub fn step(&mut self, threat_score: f32) {
         let signals = self.signal_bus.drain();
-        let neighbor_signals = signals
-            .iter()
-            .map(|signal| (signal.topic.clone(), signal.value))
-            .collect::<HashMap<_, _>>();
+        let mut neighbor_signals = HashMap::new();
+        for signal in &signals {
+            neighbor_signals
+                .entry(signal.topic.clone())
+                .and_modify(|value| {
+                    *value = (*value + signal.value) * 0.5;
+                })
+                .or_insert(signal.value);
+        }
 
         let mut actions = Vec::with_capacity(self.cells.len());
 
@@ -83,7 +88,8 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 self.telemetry.record(
                     SystemTime::now(),
                     TelemetryEvent::SignalEmitted {
-                        topic: format!("{topic}::{cell_id}"),
+                        cell_id,
+                        topic,
                         value,
                     },
                 );
@@ -99,5 +105,10 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
     #[allow(dead_code)]
     pub fn telemetry_mut(&mut self) -> &mut TSink {
         &mut self.telemetry
+    }
+
+    #[allow(dead_code)]
+    pub fn inject_signal(&mut self, signal: Signal) {
+        self.signal_bus.publish(signal);
     }
 }

@@ -5,9 +5,19 @@ use std::time::{Duration, SystemTime};
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum TelemetryEvent {
-    CellReplicated { cell_id: String, child_id: String },
-    LineageShift { cell_id: String, lineage: String },
-    SignalEmitted { topic: String, value: f32 },
+    CellReplicated {
+        cell_id: String,
+        child_id: String,
+    },
+    LineageShift {
+        cell_id: String,
+        lineage: String,
+    },
+    SignalEmitted {
+        cell_id: String,
+        topic: String,
+        value: f32,
+    },
 }
 
 #[allow(dead_code)]

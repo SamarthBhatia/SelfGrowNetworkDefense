@@ -1,5 +1,6 @@
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
+use morphogenetic_security::signaling::Signal;
 use morphogenetic_security::telemetry::InMemorySink;
 use morphogenetic_security::{ConfigError, MorphogeneticApp, ScenarioConfig};
 use std::cmp::max;
@@ -20,8 +21,15 @@ fn main() {
     let mut app = MorphogeneticApp::new(cells, telemetry);
 
     let steps = max(1, config.simulation_steps);
-    for _ in 0..steps {
-        app.step(config.threat_profile.background_threat);
+    for step in 0..steps {
+        let threat = config.threat_level_for_step(step);
+        if threat >= config.threat_profile.spike_threshold {
+            app.inject_signal(Signal {
+                topic: "activator".to_string(),
+                value: threat,
+            });
+        }
+        app.step(threat);
     }
 
     let events = app.telemetry().events();
