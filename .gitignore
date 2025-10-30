@@ -1,6 +1,8 @@
 # Ignore build artifacts and backup archives
 /target/
 /legacy_project_backup/
+AGENTS.md
+status.md
 
 # Rust tooling
 **/*.rs.bk

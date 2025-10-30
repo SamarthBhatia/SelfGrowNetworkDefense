@@ -24,7 +24,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
     }
 
     #[allow(dead_code)]
-    pub fn step(&mut self) {
+    pub fn step(&mut self, threat_score: f32) {
         let signals = self.signal_bus.drain();
         let neighbor_signals = signals
             .iter()
@@ -35,7 +35,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
 
         for (index, cell) in self.cells.iter_mut().enumerate() {
             let environment = CellEnvironment {
-                local_threat_score: 0.0,
+                local_threat_score: threat_score,
                 neighbor_signals: neighbor_signals.clone(),
             };
             let action = cell.tick(&environment);

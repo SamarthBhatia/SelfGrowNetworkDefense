@@ -10,7 +10,7 @@ pub struct CellEnvironment {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CellLineage {
     Stem,
     Firewall,
@@ -70,5 +70,46 @@ impl SecurityCell {
         }
 
         CellAction::Idle
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn env_with_threat(threat: f32) -> CellEnvironment {
+        CellEnvironment {
+            local_threat_score: threat,
+            neighbor_signals: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn cell_replicates_when_threat_exceeds_threshold() {
+        let mut cell = SecurityCell::new("alpha");
+        cell.reproduction_threshold = 0.5;
+        let action = cell.tick(&env_with_threat(0.75));
+        assert!(matches!(action, CellAction::Replicate(_)));
+    }
+
+    #[test]
+    fn cell_differentiates_under_stress() {
+        let mut cell = SecurityCell::new("beta");
+        cell.state.stress_level = 0.6;
+        let action = cell.tick(&env_with_threat(0.1));
+        match action {
+            CellAction::Differentiate(lineage) => {
+                assert_eq!(lineage, CellLineage::IntrusionDetection);
+            }
+            other => panic!("expected differentiation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cell_idles_when_conditions_are_nominal() {
+        let mut cell = SecurityCell::new("gamma");
+        let action = cell.tick(&env_with_threat(0.1));
+        assert!(matches!(action, CellAction::Idle));
     }
 }
