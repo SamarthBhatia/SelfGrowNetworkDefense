@@ -82,3 +82,16 @@ python scripts/prepare_telemetry_dashboard.py runs/baseline.jsonl \
 ```
 
 The CSV exposes one row per step with replication counts, dominant signal topics, stimulus totals, and more—drop it into Pandas, Polars, or spreadsheet tools. The optional Vega-Lite spec can be opened in [vega.github.io/editor](https://vega.github.io/editor/) to iterate on interactive visualisations without writing boilerplate.
+
+Pipe the generated CSV into the adversarial harness CLI to derive fitness scoring and mutation guidance:
+
+```bash
+cargo run --bin adversarial_cycle -- \
+  --candidate-id demo-seed \
+  --scenario docs/examples/intense-defense.yaml \
+  --generation 0 \
+  --metrics dashboards/baseline_steps.csv \
+  --emit-json dashboards/baseline_harness.json
+```
+
+The command emits a console summary plus an optional JSON artifact detailing the computed fitness, breach detection flag, and queued mutation note for the next attack candidate.
