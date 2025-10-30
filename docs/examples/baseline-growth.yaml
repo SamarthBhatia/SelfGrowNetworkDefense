@@ -1,0 +1,11 @@
+scenario_name: baseline-growth
+initial_cell_count: 2
+simulation_steps: 10
+threat_profile:
+  background_threat: 0.15
+  spike_threshold: 0.6
+spikes:
+  - step: 3
+    intensity: 0.35
+  - step: 7
+    intensity: 0.45

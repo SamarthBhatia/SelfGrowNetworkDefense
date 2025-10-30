@@ -1,0 +1,13 @@
+scenario_name: intense-defense
+initial_cell_count: 4
+simulation_steps: 20
+threat_profile:
+  background_threat: 0.3
+  spike_threshold: 0.75
+spikes:
+  - step: 2
+    intensity: 0.4
+  - step: 5
+    intensity: 0.55
+  - step: 9
+    intensity: 0.6
