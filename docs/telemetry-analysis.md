@@ -69,3 +69,16 @@ python scripts/telemetry_correlate.py runs/baseline.jsonl --stimulus runs/stimul
 ```
 
 This prints per-step threat levels, cell counts, replication totals, signal emissions, and aggregated stimulus values—ideal for diagnosing how morphogenetic responses track external pressure.
+
+## Dashboard Bootstrap
+
+When you need richer dashboards or notebook-ready datasets, export structured step metrics and a Vega-Lite template in one pass:
+
+```bash
+python scripts/prepare_telemetry_dashboard.py runs/baseline.jsonl \
+  --stimulus runs/stimulus.jsonl \
+  --output dashboards/baseline_steps.csv \
+  --vega-lite dashboards/baseline_spec.json
+```
+
+The CSV exposes one row per step with replication counts, dominant signal topics, stimulus totals, and more—drop it into Pandas, Polars, or spreadsheet tools. The optional Vega-Lite spec can be opened in [vega.github.io/editor](https://vega.github.io/editor/) to iterate on interactive visualisations without writing boilerplate.
