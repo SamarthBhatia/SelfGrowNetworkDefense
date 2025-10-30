@@ -22,6 +22,11 @@ pub enum TelemetryEvent {
         topic: String,
         value: f32,
     },
+    StepSummary {
+        step: u32,
+        threat_score: f32,
+        cell_count: usize,
+    },
 }
 
 #[allow(dead_code)]

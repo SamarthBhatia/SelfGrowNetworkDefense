@@ -24,7 +24,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
     }
 
     #[allow(dead_code)]
-    pub fn step(&mut self, threat_score: f32) {
+    pub fn step(&mut self, step_index: u32, threat_score: f32) {
         let signals = self.signal_bus.drain();
         let mut neighbor_signals = HashMap::new();
         for signal in &signals {
@@ -50,6 +50,16 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         for (index, action) in actions {
             self.handle_action(index, action);
         }
+
+        let cell_count = self.cells.len();
+        self.telemetry.record(
+            SystemTime::now(),
+            TelemetryEvent::StepSummary {
+                step: step_index,
+                threat_score,
+                cell_count,
+            },
+        );
     }
 
     fn handle_action(&mut self, index: usize, action: CellAction) {

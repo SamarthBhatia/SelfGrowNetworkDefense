@@ -63,7 +63,7 @@ fn main() {
             }
         }
 
-        app.step(threat);
+        app.step(step, threat);
     }
 
     let events = app.telemetry().events();

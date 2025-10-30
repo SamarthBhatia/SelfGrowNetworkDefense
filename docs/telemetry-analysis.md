@@ -12,6 +12,8 @@ Options:
 
 - `--limit <N>`: Read at most `N` records from each file (useful for large runs).
 - Multiple file paths can be supplied to aggregate across experiments.
+- `--plot`: Render a cumulative events chart (requires `pip install matplotlib`).
+- `--plot-output plot.png`: Save the chart instead of opening a window.
 
 Sample output:
 
@@ -46,8 +48,24 @@ Lineage transitions (aggregate):
 
 3. After the simulation, summarize telemetry:
 
-   ```bash
-   python scripts/analyze_telemetry.py runs/baseline.jsonl
-   ```
+```bash
+python scripts/analyze_telemetry.py runs/baseline.jsonl
+```
+
+To generate a plot and save it:
+
+```bash
+python scripts/analyze_telemetry.py runs/baseline.jsonl --plot --plot-output runs/baseline.png
+```
 
 For deeper analysis import the JSONL into Python/Pandas, Jupyter notebooks, or a Rust analytics pipeline. The summary script is intentionally lightweight and can be extended as the telemetry schema evolves.
+
+## Step-Level Correlation
+
+Use the correlation helper to align telemetry `StepSummary` events with replication counts and stimulus injections:
+
+```bash
+python scripts/telemetry_correlate.py runs/baseline.jsonl --stimulus runs/stimulus.jsonl
+```
+
+This prints per-step threat levels, cell counts, replication totals, signal emissions, and aggregated stimulus values—ideal for diagnosing how morphogenetic responses track external pressure.
