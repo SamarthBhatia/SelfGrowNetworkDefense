@@ -1,0 +1,10 @@
+# Ignore build artifacts and backup archives
+/target/
+/legacy_project_backup/
+
+# Rust tooling
+**/*.rs.bk
+# IDEs and system files
+.DS_Store
+.idea/
+*.swp

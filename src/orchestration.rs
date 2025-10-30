@@ -1,0 +1,103 @@
+//! High-level orchestration for the morphogenetic security system.
+
+use crate::cellular::{CellAction, CellEnvironment, SecurityCell};
+use crate::signaling::{Signal, SignalBus};
+use crate::telemetry::{TelemetryEvent, TelemetrySink};
+use std::collections::HashMap;
+use std::time::SystemTime;
+
+#[allow(dead_code)]
+pub struct MorphogeneticApp<TSink: TelemetrySink> {
+    cells: Vec<SecurityCell>,
+    signal_bus: SignalBus,
+    telemetry: TSink,
+}
+
+impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
+    #[allow(dead_code)]
+    pub fn new(cells: Vec<SecurityCell>, telemetry: TSink) -> Self {
+        Self {
+            cells,
+            signal_bus: SignalBus::default(),
+            telemetry,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn step(&mut self) {
+        let signals = self.signal_bus.drain();
+        let neighbor_signals = signals
+            .iter()
+            .map(|signal| (signal.topic.clone(), signal.value))
+            .collect::<HashMap<_, _>>();
+
+        let mut actions = Vec::with_capacity(self.cells.len());
+
+        for (index, cell) in self.cells.iter_mut().enumerate() {
+            let environment = CellEnvironment {
+                local_threat_score: 0.0,
+                neighbor_signals: neighbor_signals.clone(),
+            };
+            let action = cell.tick(&environment);
+            actions.push((index, action));
+        }
+
+        for (index, action) in actions {
+            self.handle_action(index, action);
+        }
+    }
+
+    fn handle_action(&mut self, index: usize, action: CellAction) {
+        match action {
+            CellAction::Idle => {}
+            CellAction::Replicate(child_id) => {
+                let child = SecurityCell::new(child_id.clone());
+                let parent_id = self.cells[index].id.clone();
+                self.telemetry.record(
+                    SystemTime::now(),
+                    TelemetryEvent::CellReplicated {
+                        cell_id: parent_id,
+                        child_id,
+                    },
+                );
+                self.cells.push(child);
+            }
+            CellAction::Differentiate(lineage) => {
+                if let Some(cell) = self.cells.get_mut(index) {
+                    cell.state.lineage = lineage.clone();
+                }
+                self.telemetry.record(
+                    SystemTime::now(),
+                    TelemetryEvent::LineageShift {
+                        cell_id: self.cells[index].id.clone(),
+                        lineage: format!("{lineage:?}"),
+                    },
+                );
+            }
+            CellAction::EmitSignal(topic, value) => {
+                let cell_id = self.cells[index].id.clone();
+                self.signal_bus.publish(Signal {
+                    topic: topic.clone(),
+                    value,
+                });
+                self.telemetry.record(
+                    SystemTime::now(),
+                    TelemetryEvent::SignalEmitted {
+                        topic: format!("{topic}::{cell_id}"),
+                        value,
+                    },
+                );
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn telemetry(&self) -> &TSink {
+        &self.telemetry
+    }
+
+    #[allow(dead_code)]
+    pub fn telemetry_mut(&mut self) -> &mut TSink {
+        &mut self.telemetry
+    }
+}
