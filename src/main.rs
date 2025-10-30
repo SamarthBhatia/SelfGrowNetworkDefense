@@ -1,14 +1,18 @@
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
 use morphogenetic_security::signaling::Signal;
-use morphogenetic_security::telemetry::InMemorySink;
-use morphogenetic_security::{ConfigError, MorphogeneticApp, ScenarioConfig};
+use morphogenetic_security::stimulus::StimulusSchedule;
+use morphogenetic_security::telemetry::{InMemorySink, TelemetryPipeline};
+use morphogenetic_security::{MorphogeneticApp, ScenarioConfig};
 use std::cmp::max;
 use std::env;
+use std::path::PathBuf;
 use std::process;
 
 fn main() {
-    let config = resolve_config();
+    let runtime = resolve_runtime();
+    let config = runtime.config;
+
     let cell_count = max(1, config.initial_cell_count);
     let mut cells = Vec::with_capacity(cell_count);
     for idx in 0..cell_count {
@@ -17,8 +21,28 @@ fn main() {
         cells.push(cell);
     }
 
-    let telemetry = InMemorySink::default();
-    let mut app = MorphogeneticApp::new(cells, telemetry);
+    let telemetry_pipeline = runtime
+        .telemetry_path
+        .as_ref()
+        .map(|path| TelemetryPipeline::with_file(path))
+        .transpose()
+        .unwrap_or_else(|err| {
+            eprintln!("Failed to initialize telemetry sink: {err}");
+            process::exit(1);
+        })
+        .unwrap_or_else(|| TelemetryPipeline::new(InMemorySink::default(), None));
+
+    let mut app = MorphogeneticApp::new(cells, telemetry_pipeline);
+
+    let mut stimulus_schedule = runtime
+        .stimulus_path
+        .as_ref()
+        .map(|path| StimulusSchedule::load(path))
+        .transpose()
+        .unwrap_or_else(|err| {
+            eprintln!("Failed to load stimulus schedule: {err}");
+            process::exit(1);
+        });
 
     let steps = max(1, config.simulation_steps);
     for step in 0..steps {
@@ -29,6 +53,16 @@ fn main() {
                 value: threat,
             });
         }
+
+        if let Some(schedule) = stimulus_schedule.as_mut() {
+            for command in schedule.take_for_step(step) {
+                app.inject_signal(Signal {
+                    topic: command.topic.clone(),
+                    value: command.value,
+                });
+            }
+        }
+
         app.step(threat);
     }
 
@@ -41,21 +75,70 @@ fn main() {
     );
 }
 
-fn resolve_config() -> ScenarioConfig {
-    match load_config_from_cli() {
-        Ok(config) => config,
+struct RuntimeContext {
+    config: ScenarioConfig,
+    telemetry_path: Option<PathBuf>,
+    stimulus_path: Option<PathBuf>,
+}
+
+fn resolve_runtime() -> RuntimeContext {
+    match parse_cli() {
+        Ok(context) => context,
         Err(err) => {
-            eprintln!("Failed to load scenario configuration: {err}");
+            eprintln!("{err}");
             process::exit(1);
         }
     }
 }
 
-fn load_config_from_cli() -> Result<ScenarioConfig, ConfigError> {
+fn parse_cli() -> Result<RuntimeContext, String> {
     let mut args = env::args().skip(1);
-    if let Some(path) = args.next() {
-        config::load_from_path(path)
-    } else {
-        Ok(ScenarioConfig::default())
+    let mut config_path: Option<PathBuf> = None;
+    let mut telemetry_path: Option<PathBuf> = None;
+    let mut stimulus_path: Option<PathBuf> = None;
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--config" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --config".to_string())?;
+                config_path = Some(PathBuf::from(value));
+            }
+            "--telemetry" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --telemetry".to_string())?;
+                telemetry_path = Some(PathBuf::from(value));
+            }
+            "--stimulus" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --stimulus".to_string())?;
+                stimulus_path = Some(PathBuf::from(value));
+            }
+            _ if arg.starts_with("--") => {
+                return Err(format!("Unknown argument `{arg}`"));
+            }
+            positional => {
+                if config_path.is_none() {
+                    config_path = Some(PathBuf::from(positional));
+                } else {
+                    return Err(format!("Unexpected positional argument `{positional}`"));
+                }
+            }
+        }
     }
+
+    let config = if let Some(path) = config_path {
+        config::load_from_path(&path).map_err(|err| err.to_string())?
+    } else {
+        ScenarioConfig::default()
+    };
+
+    Ok(RuntimeContext {
+        config,
+        telemetry_path,
+        stimulus_path,
+    })
 }
