@@ -8,6 +8,9 @@ pub mod signaling;
 pub mod stimulus;
 pub mod telemetry;
 
-pub use adversarial::{AdversarialHarness, AttackCandidate, AttackOutcome, EvolutionConfig};
+pub use adversarial::{
+    AdversarialHarness, AttackCandidate, AttackOutcome, EvaluatedCandidate, EvolutionConfig,
+    ExecutionReport, HarnessAnalysis, HarnessError, HarnessState, RunStatistics, StepMetrics,
+};
 pub use config::{ConfigError, ScenarioConfig, ThreatSpike};
 pub use orchestration::MorphogeneticApp;

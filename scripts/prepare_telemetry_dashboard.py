@@ -60,6 +60,12 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_SPEC_METRICS,
         help="Metric columns to include in the Vega-Lite fold transform.",
     )
+    parser.add_argument(
+        "--lineage-output",
+        type=Path,
+        default=None,
+        help="Optional long-form CSV capturing lineage counts per step.",
+    )
     return parser.parse_args()
 
 
@@ -75,6 +81,11 @@ def main() -> None:
     rows = build_step_rows(per_step, stimuli)
     write_csv(rows, args.output)
     print(f"[info] Wrote {len(rows)} step rows to {args.output}")
+
+    if args.lineage_output:
+        lineage_rows = build_lineage_rows(rows)
+        write_lineage_csv(lineage_rows, args.lineage_output)
+        print(f"[info] Wrote {len(lineage_rows)} lineage rows to {args.lineage_output}")
 
     if args.vega_lite:
         spec = build_vega_spec(rows, args.metrics)
@@ -146,6 +157,30 @@ def write_csv(rows: Iterable[dict], destination: Path) -> None:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows_list:
+            writer.writerow(row)
+
+
+def build_lineage_rows(rows: List[dict]) -> List[dict]:
+    lineage_rows: List[dict] = []
+    for row in rows:
+        payload = json.loads(row["lineage_shifts_by_lineage"])
+        for lineage, count in payload.items():
+            lineage_rows.append(
+                {
+                    "step": int(row["step"]),
+                    "lineage": str(lineage),
+                    "count": int(count),
+                }
+            )
+    return lineage_rows
+
+
+def write_lineage_csv(rows: List[dict], destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["step", "lineage", "count"])
+        writer.writeheader()
+        for row in rows:
             writer.writerow(row)
 
 

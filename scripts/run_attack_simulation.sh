@@ -8,9 +8,10 @@ STIMULUS_FILE="$TARGET_DIR/ci_stimulus.jsonl"
 DASHBOARD_CSV="$TARGET_DIR/ci_attack_steps.csv"
 DASHBOARD_SPEC="$TARGET_DIR/ci_attack_spec.json"
 HARNESS_JSON="$TARGET_DIR/ci_harness_outcome.json"
+HARNESS_STATE="$TARGET_DIR/ci_harness_state.json"
 
 mkdir -p "$TARGET_DIR"
-rm -f "$TELEMETRY_FILE" "$STIMULUS_FILE" "$DASHBOARD_CSV" "$DASHBOARD_SPEC" "$HARNESS_JSON"
+rm -f "$TELEMETRY_FILE" "$STIMULUS_FILE" "$DASHBOARD_CSV" "$DASHBOARD_SPEC" "$HARNESS_JSON" "$HARNESS_STATE"
 
 # Seed a simple stimulus schedule
 cargo run --quiet --bin stimulus -- "$STIMULUS_FILE" activator 0.9 3
@@ -35,6 +36,8 @@ cargo run --quiet --bin adversarial_cycle -- \
   --scenario "$ROOT_DIR/docs/examples/intense-defense.yaml" \
   --generation 0 \
   --metrics "$DASHBOARD_CSV" \
+  --stimulus "$STIMULUS_FILE" \
+  --state "$HARNESS_STATE" \
   --emit-json "$HARNESS_JSON"
 
 printf "Telemetry artifacts saved to %s\n" "$TARGET_DIR"

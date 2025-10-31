@@ -34,11 +34,44 @@ fn run() -> Result<(), String> {
         config.retain_elite = retain_elite;
     }
 
-    let mut harness = AdversarialHarness::new(config);
+    let mut harness = if let Some(state_path) = args.state_path.as_ref() {
+        if state_path.exists() {
+            let harness = AdversarialHarness::load_state(state_path).map_err(|err| {
+                format!(
+                    "Failed to load harness state `{}`: {err}",
+                    state_path.display()
+                )
+            })?;
+            if args.batch_size.is_some()
+                || args.max_generations.is_some()
+                || args.retain_elite.is_some()
+            {
+                println!("[info] Loaded existing harness; configuration overrides ignored.");
+            }
+            harness
+        } else {
+            println!(
+                "[info] Initialising new harness state at {} (batch_size={}, max_generations={}, retain_elite={})",
+                state_path.display(),
+                config.batch_size,
+                config.max_generations,
+                config.retain_elite
+            );
+            AdversarialHarness::new(config.clone())
+        }
+    } else {
+        AdversarialHarness::new(config.clone())
+    };
+
     let candidate = AttackCandidate {
         id: args.candidate_id.clone(),
         scenario_ref: args.scenario_ref.clone(),
+        stimulus_ref: args
+            .stimulus_path
+            .as_ref()
+            .map(|path| path.to_string_lossy().to_string()),
         generation: args.generation,
+        parent_id: None,
         mutation_note: args.initial_note.clone(),
     };
 
@@ -54,6 +87,20 @@ fn run() -> Result<(), String> {
         write_json(&analysis, &outcome, maybe_mutation.as_ref(), path)?;
     }
 
+    if let Some(state_path) = &args.state_path {
+        harness.save_state(state_path).map_err(|err| {
+            format!(
+                "Failed to persist harness state `{}`: {err}",
+                state_path.display()
+            )
+        })?;
+        println!(
+            "Harness state saved to {} (backlog: {})",
+            state_path.display(),
+            harness.backlog_len()
+        );
+    }
+
     Ok(())
 }
 
@@ -64,10 +111,14 @@ fn print_summary(
     backlog_len: usize,
 ) {
     let stats = &analysis.statistics;
+    let outcome_candidate = &outcome.candidate;
     println!("=== Harness Evaluation ===");
     println!(
         "Candidate `{}` generation {} => fitness {:.3} | breach={}",
-        outcome.candidate_id, outcome.generation, analysis.fitness_score, analysis.breach_observed
+        outcome_candidate.id,
+        outcome_candidate.generation,
+        analysis.fitness_score,
+        analysis.breach_observed
     );
     println!(
         "Steps: {} | avg threat {:.2} (max {:.2}) | replications {} | signals {} | stimulus {:.2}",
@@ -110,13 +161,15 @@ fn write_json(
     path: PathBuf,
 ) -> Result<(), String> {
     let stats = &analysis.statistics;
+    let outcome_candidate = &outcome.candidate;
     let payload = json!({
         "outcome": {
-            "candidate_id": outcome.candidate_id,
-            "generation": outcome.generation,
+            "candidate_id": outcome_candidate.id,
+            "generation": outcome_candidate.generation,
             "fitness_score": outcome.fitness_score,
             "breach_observed": outcome.breach_observed,
             "notes": outcome.notes,
+            "stimulus_ref": outcome_candidate.stimulus_ref.clone(),
         },
         "statistics": {
             "step_count": stats.step_count,
@@ -138,6 +191,7 @@ fn write_json(
             json!({
                 "id": candidate.id,
                 "scenario_ref": candidate.scenario_ref,
+                "stimulus_ref": candidate.stimulus_ref.clone(),
                 "generation": candidate.generation,
                 "mutation_note": candidate.mutation_note,
             })
@@ -173,10 +227,12 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut generation: u32 = 0;
     let mut metrics_path: Option<PathBuf> = None;
     let mut initial_note: Option<String> = None;
+    let mut stimulus_path: Option<PathBuf> = None;
     let mut batch_size: Option<usize> = None;
     let mut max_generations: Option<u32> = None;
     let mut retain_elite: Option<bool> = None;
     let mut emit_json: Option<PathBuf> = None;
+    let mut state_path: Option<PathBuf> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -212,6 +268,12 @@ fn parse_args() -> Result<CliArgs, String> {
                         .ok_or_else(|| "Missing value for --note".to_string())?,
                 );
             }
+            "--stimulus" => {
+                stimulus_path = Some(PathBuf::from(
+                    args.next()
+                        .ok_or_else(|| "Missing value for --stimulus".to_string())?,
+                ));
+            }
             "--batch-size" => {
                 let value = args
                     .next()
@@ -240,6 +302,12 @@ fn parse_args() -> Result<CliArgs, String> {
                         "Missing value for --emit-json".to_string()
                     })?));
             }
+            "--state" => {
+                state_path = Some(PathBuf::from(
+                    args.next()
+                        .ok_or_else(|| "Missing value for --state".to_string())?,
+                ));
+            }
             unknown => {
                 return Err(format!("Unknown argument `{unknown}`"));
             }
@@ -263,6 +331,8 @@ fn parse_args() -> Result<CliArgs, String> {
         max_generations,
         retain_elite,
         emit_json,
+        stimulus_path,
+        state_path,
     })
 }
 
@@ -273,10 +343,12 @@ fn print_usage() {
 Options:
   --generation <n>         Generation index for the evaluated candidate (default: 0)
   --note <text>            Optional note describing the evaluated candidate
+  --stimulus <path>        Associate a stimulus schedule with the candidate
   --batch-size <n>         Override harness batch size (default: 3)
   --max-generations <n>    Override harness archival depth (default: 10)
   --retain-elite           Retain high performers for future mutation (default: true)
   --no-retain-elite        Disable elite retention
+  --state <path>           Load/save harness state for persistent backlogs
   --emit-json <path>       Persist evaluation output as JSON
   --help                   Show this message"
     );
@@ -288,6 +360,8 @@ struct CliArgs {
     generation: u32,
     metrics_path: PathBuf,
     initial_note: Option<String>,
+    stimulus_path: Option<PathBuf>,
+    state_path: Option<PathBuf>,
     batch_size: Option<usize>,
     max_generations: Option<u32>,
     retain_elite: Option<bool>,
