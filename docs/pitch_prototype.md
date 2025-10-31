@@ -14,6 +14,7 @@ The script:
 - Generates per-step metrics, lineage CSVs, and ready-to-plot Vega-Lite specs.
 - Scores each run with the adversarial harness, persisting backlog state for follow-up mutations.
 - Drops a quick-reference cheatsheet under `target/pitch_demo/`.
+- Makes the terminal dashboard (`cargo run --bin pitch_tui -- target/pitch_demo`) useful immediately.
 
 All artefacts land in `target/pitch_demo/`, keeping the repository clean.
 
@@ -25,6 +26,7 @@ Use the generated assets to narrate the system’s behaviour:
 3. **Adaptive guidance** — inspect `intense_outcome.json` to show the harness recommending the next mutation and expanding the backlog.
 4. **Visual pulse** — load `intense_vega.json` in a Vega viewer (Observable or VS Code extension) to plot threat vs. replication trajectories.
 5. **Lineage dynamics** — layer `intense_lineage.csv` into your favourite charting tool to emphasise morphogenetic differentiation under pressure.
+6. **Live dashboard** — open the TUI (`cargo run --bin pitch_tui -- target/pitch_demo`) and hit `r` to refresh while discussing follow-up mutations.
 
 ## 3. Portable talking points
 

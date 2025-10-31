@@ -12,6 +12,14 @@ scripts/pitch_demo.sh
 
 The script produces telemetry summaries, dashboard-ready CSVs, and adversarial harness insights for both a calm baseline and an intense attack scenario. See `docs/pitch_prototype.md` for the storytelling flow and talking points.
 
+Want a quick visual? Launch the terminal dashboard after the demo artifacts exist:
+
+```bash
+cargo run --bin pitch_tui -- target/pitch_demo
+```
+
+The TUI compares each scenario’s fitness, threat levels, and recommended mutations, reloading live with `r`.
+
 ## Development Basics
 
 - `cargo build` — compile the runtime.
