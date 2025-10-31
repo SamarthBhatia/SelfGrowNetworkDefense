@@ -1,5 +1,8 @@
 use crossterm::event::{self, Event, KeyCode};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::execute;
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -80,10 +83,13 @@ impl App {
 fn run_app(app: &mut App) -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    let backend = CrosstermBackend::new(&mut stdout);
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
 
-    loop {
+    let mut exit = false;
+    while !exit {
         terminal.draw(|frame| {
             let size = frame.size();
             let chunks = Layout::default()
@@ -149,7 +155,7 @@ fn run_app(app: &mut App) -> Result<(), Box<dyn Error>> {
         if event::poll(Duration::from_millis(250))? {
             match event::read()? {
                 Event::Key(key) => match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => break,
+                    KeyCode::Char('q') | KeyCode::Esc => exit = true,
                     KeyCode::Char('r') => app.reload(),
                     _ => {}
                 },
@@ -160,6 +166,8 @@ fn run_app(app: &mut App) -> Result<(), Box<dyn Error>> {
     }
 
     disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
     Ok(())
 }
 
