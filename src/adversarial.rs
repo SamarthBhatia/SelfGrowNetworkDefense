@@ -514,10 +514,14 @@ struct RawMetricsRow {
     signals_total: u32,
     lineage_shifts_total: u32,
     stimulus_total: f32,
-    top_signal_topic: String,
-    top_signal_count: u32,
-    top_lineage: String,
-    top_lineage_count: u32,
+    #[serde(rename = "top_signal_topic")]
+    _top_signal_topic: String,
+    #[serde(rename = "top_signal_count")]
+    _top_signal_count: u32,
+    #[serde(rename = "top_lineage")]
+    _top_lineage: String,
+    #[serde(rename = "top_lineage_count")]
+    _top_lineage_count: u32,
     signals_by_topic: String,
     lineage_shifts_by_lineage: String,
     stimulus_by_topic: String,
@@ -691,13 +695,36 @@ fn compute_fitness(stats: &RunStatistics) -> (f32, bool) {
     };
     let stimulus_component =
         (stats.total_stimulus / ((stats.step_count as f32).max(1.0) * 1.5)).clamp(0.0, 1.0);
+    let lineage_component = compute_lineage_component(stats);
 
-    let fitness = 0.45 * threat_component
-        + 0.25 * suppression_component
-        + 0.2 * cell_loss_component
+    let fitness = 0.35 * threat_component
+        + 0.2 * suppression_component
+        + 0.15 * cell_loss_component
+        + 0.2 * lineage_component
         + 0.1 * stimulus_component;
-    let breach_observed = fitness > 0.7 || stats.max_threat > 1.1 || cell_loss_component > 0.4;
+    let breach_observed = fitness > 0.65
+        || stats.max_threat > 1.1
+        || cell_loss_component > 0.45
+        || lineage_component > 0.8;
     (fitness, breach_observed)
+}
+
+fn compute_lineage_component(stats: &RunStatistics) -> f32 {
+    if stats.step_count == 0 {
+        return 0.0;
+    }
+
+    let pressure = stats.total_lineage_shifts as f32 / (stats.step_count as f32 + f32::EPSILON);
+    let normalised_pressure = (pressure / 0.6).clamp(0.0, 1.0);
+
+    let dominant_shift = stats.lineage_by_type.values().copied().max().unwrap_or(0) as f32;
+    let focus_ratio = if stats.total_lineage_shifts == 0 {
+        0.0
+    } else {
+        (dominant_shift / stats.total_lineage_shifts as f32).clamp(0.0, 1.0)
+    };
+
+    0.6 * normalised_pressure + 0.4 * focus_ratio
 }
 
 fn recommend_mutation(
@@ -717,6 +744,17 @@ fn recommend_mutation(
         .unwrap_or(0.0);
     let reproduction_rate =
         stats.total_replications as f32 / (stats.step_count as f32 + f32::EPSILON);
+    let lineage_pressure =
+        stats.total_lineage_shifts as f32 / (stats.step_count as f32 + f32::EPSILON);
+    let dominant_lineage_entry = stats.lineage_by_type.iter().max_by_key(|(_, count)| *count);
+    let dominant_ratio = if stats.total_lineage_shifts == 0 {
+        0.0
+    } else {
+        dominant_lineage_entry
+            .map(|(_, count)| *count as f32 / stats.total_lineage_shifts as f32)
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0)
+    };
 
     if fitness_score < 0.4 {
         if activator <= inhibitor {
@@ -733,6 +771,22 @@ fn recommend_mutation(
         } else {
             Some(
                 "tighten attack cadence: alternate activator and inhibitor surges faster"
+                    .to_string(),
+            )
+        }
+    } else if lineage_pressure < 0.2 {
+        Some(
+            "escalate lineage churn by targeting secondary cell lineages with staggered activator bursts"
+                .to_string(),
+        )
+    } else if dominant_ratio < 0.5 && stats.total_lineage_shifts > 3 {
+        if let Some((lineage, _)) = dominant_lineage_entry {
+            Some(format!(
+                "focus mutation pressure on the {lineage} lineage to consolidate takeovers"
+            ))
+        } else {
+            Some(
+                "focus mutation pressure on the highest-yield lineage to consolidate takeovers"
                     .to_string(),
             )
         }
@@ -1101,6 +1155,117 @@ mod tests {
 
         harness.record_outcome(outcome);
         assert!(harness.archive.is_empty());
+    }
+
+    #[test]
+    fn lineage_component_boosts_fitness() {
+        let base_stats = RunStatistics {
+            step_count: 20,
+            avg_threat: 0.35,
+            max_threat: 0.9,
+            avg_cell_count: 10.0,
+            min_cell_count: 9,
+            max_cell_count: 12,
+            total_replications: 8,
+            total_signals: 24,
+            total_lineage_shifts: 0,
+            total_stimulus: 0.6,
+            signals_by_topic: HashMap::from([("activator".into(), 20)]),
+            lineage_by_type: HashMap::new(),
+            stimuli_by_topic: HashMap::from([("activator".into(), 0.6)]),
+        };
+        let (baseline_fitness, baseline_breach) = compute_fitness(&base_stats);
+        assert!(baseline_fitness > 0.0);
+        assert!(!baseline_breach);
+
+        let mut elevated_stats = base_stats.clone();
+        elevated_stats.total_lineage_shifts = 18;
+        elevated_stats
+            .lineage_by_type
+            .insert("AdaptiveProbe".into(), 8);
+        elevated_stats
+            .lineage_by_type
+            .insert("IntrusionDetection".into(), 10);
+
+        let (elevated_fitness, elevated_breach) = compute_fitness(&elevated_stats);
+        assert!(
+            elevated_fitness > baseline_fitness + 0.1,
+            "expected {elevated_fitness} to significantly exceed {baseline_fitness}"
+        );
+        assert!(elevated_breach);
+    }
+
+    #[test]
+    fn recommendation_targets_lineage_churn_gap() {
+        let stats = RunStatistics {
+            step_count: 20,
+            avg_threat: 0.6,
+            max_threat: 1.0,
+            avg_cell_count: 11.0,
+            min_cell_count: 8,
+            max_cell_count: 12,
+            total_replications: 9,
+            total_signals: 12,
+            total_lineage_shifts: 2,
+            total_stimulus: 0.0,
+            signals_by_topic: HashMap::new(),
+            lineage_by_type: HashMap::from([("IntrusionDetection".into(), 2)]),
+            stimuli_by_topic: HashMap::new(),
+        };
+
+        let (fitness, breach) = compute_fitness(&stats);
+        assert!(fitness >= 0.4);
+        assert!(!breach);
+
+        let suggestion =
+            recommend_mutation(&stats, fitness, breach).expect("expected lineage churn guidance");
+        assert!(
+            suggestion.contains("lineage"),
+            "expected suggestion to reference lineage guidance: {suggestion}"
+        );
+        assert!(
+            suggestion.contains("churn"),
+            "expected suggestion to mention churn: {suggestion}"
+        );
+    }
+
+    #[test]
+    fn recommendation_focuses_dominant_lineage_when_diffuse() {
+        let stats = RunStatistics {
+            step_count: 20,
+            avg_threat: 0.55,
+            max_threat: 1.0,
+            avg_cell_count: 12.0,
+            min_cell_count: 9,
+            max_cell_count: 14,
+            total_replications: 6,
+            total_signals: 18,
+            total_lineage_shifts: 8,
+            total_stimulus: 0.5,
+            signals_by_topic: HashMap::new(),
+            lineage_by_type: HashMap::from([
+                ("IntrusionDetection".into(), 3),
+                ("AdaptiveProbe".into(), 3),
+                ("Recon".into(), 2),
+            ]),
+            stimuli_by_topic: HashMap::new(),
+        };
+
+        let (fitness, breach) = compute_fitness(&stats);
+        assert!(fitness > 0.4);
+        assert!(!breach);
+
+        let suggestion =
+            recommend_mutation(&stats, fitness, breach).expect("expected dominant lineage focus");
+        assert!(
+            suggestion.contains("focus mutation pressure"),
+            "expected focus guidance: {suggestion}"
+        );
+        let lineages = ["IntrusionDetection", "AdaptiveProbe", "Recon"];
+        assert!(
+            lineages.iter().any(|lineage| suggestion.contains(lineage)),
+            "expected suggestion to reference a known lineage: {suggestion}"
+        );
     }
 
     #[derive(Serialize)]
