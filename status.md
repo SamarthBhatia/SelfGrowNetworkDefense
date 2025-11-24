@@ -233,6 +233,8 @@ s on lineage pressure.
     - Adapted `src/bin/adversarial_cycle.rs` and `src/bin/adversarial_loop.rs` to handle the `Mutation` enum in candidate creation and output.
     - Resolved compilation errors and warnings across affected files.
     - Removed unused `initial_note` field from `CliArgs` in `src/bin/adversarial_cycle.rs` and `note` field from `SeedCandidate` in `src/bin/adversarial_loop.rs`.
+    - Implemented a mechanism to apply structured `Mutation` variants to modify scenario configurations (`src/config.rs`) and stimulus schedules (`src/stimulus.rs`).
+    - Integrated mutation application into the `simulate_candidate` function in `src/bin/adversarial_loop.rs`.
 - **Open Questions**:
     - What new mutation strategies should be implemented beyond simple stimulus changes and spike additions?
     - How can we visualize the effects of structured mutations in the TUI or web dashboards?
@@ -275,6 +277,21 @@ s on lineage pressure.
     - What strategies should be used for selecting the best candidates for mutation and for pruning less effective ones?
 - **Next Session Starting Point**:
     - Implement more sophisticated mutation strategies (e.g., crossover, targeted mutation) and selection mechanisms within the adversarial harness.
+
+### 2025-11-24 — Session 19
+- **Focus**: Implement more sophisticated mutation strategies and selection mechanisms within the adversarial harness.
+- **Actions**:
+    - Refactored `recommend_mutation` in `src/adversarial.rs` to use a new `generate_mutation_pool` function.
+    - Implemented `generate_mutation_pool` to create a `Vec<Mutation>` based on `RunStatistics`, `fitness_score`, and `breach_observed`. This pool is generated using a set of weighted conditional rules and includes a random small change for exploration.
+    - Updated `HarnessAnalysis` to use `Vec<Mutation>` for `recommended_mutation`.
+    - Updated `finalize_evaluation` to pick the first mutation from the recommended mutations.
+    - Fixed unused import warnings and other compilation errors related to the changes in this session.
+- **Open Questions**:
+    - How to implement a robust crossover mechanism that intelligently combines elements of two parent attack candidates.
+    - How to implement different selection mechanisms (e.g., tournament selection, roulette wheel selection) to drive the evolution process effectively.
+    - What metrics should be used to evaluate the diversity of the generated attack candidates?
+- **Next Session Starting Point**:
+    - Implement a crossover mechanism for `AttackCandidate`s in `src/adversarial.rs` that combines aspects of two parent candidates.
                                                                                                                                                        
 ## Working Agreements                                                                                                                                  
 - Always record start-of-session intent and end-of-session summary in this document.                                                                   
