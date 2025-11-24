@@ -18,6 +18,7 @@ import argparse
 import collections
 import csv
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
@@ -69,7 +70,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--metrics",
-        nargs="+",
+        nargs=
+        "+",
         default=DEFAULT_SPEC_METRICS,
         help="Metric columns to include in the Vega-Lite fold transform.",
     )
@@ -84,7 +86,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    per_step, _ = load_telemetry_per_step(args.telemetry)
+    per_step, _, scenario_name = load_telemetry_per_step(args.telemetry)
     stimuli = load_stimuli(args.stimulus)
 
     if not per_step:
@@ -99,7 +101,17 @@ def main() -> None:
     print(f"[info] Wrote {len(rows)} step rows to {args.output}")
 
     if args.summary_json:
-        summary = {"stats": stats, "annotations": annotations}
+        final_cell_count = rows[-1]["cell_count"] if rows else 0
+        run_metadata = {
+            "scenario_name": scenario_name,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "final_cell_count": final_cell_count,
+        }
+        summary = {
+            "run_metadata": run_metadata,
+            "stats": stats,
+            "annotations": annotations,
+        }
         args.summary_json.parent.mkdir(parents=True, exist_ok=True)
         args.summary_json.write_text(json.dumps(summary, indent=2))
         print(f"[info] Wrote summary to {args.summary_json}")

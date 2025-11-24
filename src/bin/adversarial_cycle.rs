@@ -72,7 +72,7 @@ fn run() -> Result<(), String> {
             .map(|path| path.to_string_lossy().to_string()),
         generation: args.generation,
         parent_id: None,
-        mutation_note: args.initial_note.clone(),
+        mutation: None,
     };
 
     let (outcome, maybe_mutation, analysis) =
@@ -135,20 +135,17 @@ fn print_summary(
     );
 
     if let Some(mutation) = &analysis.recommended_mutation {
-        println!("Recommended mutation: {mutation}");
+        println!("Recommended mutation: {:?}", mutation);
     } else {
         println!("Recommended mutation: none (candidate retained)");
     }
 
     if let Some(next_candidate) = maybe_mutation {
         println!(
-            "Queued follow-up candidate `{}` (generation {}) with note: {}",
+            "Queued follow-up candidate `{}` (generation {}) with mutation: {:?}",
             next_candidate.id,
             next_candidate.generation,
-            next_candidate
-                .mutation_note
-                .as_deref()
-                .unwrap_or("<unspecified>")
+            next_candidate.mutation
         );
     }
     println!("Harness backlog size after evaluation: {backlog_len}");
@@ -193,7 +190,7 @@ fn write_json(
                 "scenario_ref": candidate.scenario_ref,
                 "stimulus_ref": candidate.stimulus_ref.clone(),
                 "generation": candidate.generation,
-                "mutation_note": candidate.mutation_note,
+                "mutation": candidate.mutation,
             })
         }),
     });
@@ -226,7 +223,6 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut scenario_ref: Option<String> = None;
     let mut generation: u32 = 0;
     let mut metrics_path: Option<PathBuf> = None;
-    let mut initial_note: Option<String> = None;
     let mut stimulus_path: Option<PathBuf> = None;
     let mut batch_size: Option<usize> = None;
     let mut max_generations: Option<u32> = None;
@@ -261,12 +257,6 @@ fn parse_args() -> Result<CliArgs, String> {
                     args.next()
                         .ok_or_else(|| "Missing value for --metrics".to_string())?,
                 ));
-            }
-            "--note" => {
-                initial_note = Some(
-                    args.next()
-                        .ok_or_else(|| "Missing value for --note".to_string())?,
-                );
             }
             "--stimulus" => {
                 stimulus_path = Some(PathBuf::from(
@@ -326,7 +316,6 @@ fn parse_args() -> Result<CliArgs, String> {
         scenario_ref,
         generation,
         metrics_path,
-        initial_note,
         batch_size,
         max_generations,
         retain_elite,
@@ -359,7 +348,6 @@ struct CliArgs {
     scenario_ref: String,
     generation: u32,
     metrics_path: PathBuf,
-    initial_note: Option<String>,
     stimulus_path: Option<PathBuf>,
     state_path: Option<PathBuf>,
     batch_size: Option<usize>,

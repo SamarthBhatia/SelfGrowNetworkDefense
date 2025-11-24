@@ -9,6 +9,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TelemetryEvent {
+    Scenario {
+        name: String,
+    },
     CellReplicated {
         cell_id: String,
         child_id: String,

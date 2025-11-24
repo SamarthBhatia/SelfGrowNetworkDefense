@@ -36,7 +36,7 @@ fn run() -> Result<(), String> {
                     .map(|path| path.to_string_lossy().to_string()),
                 generation: 0,
                 parent_id: None,
-                mutation_note: seed.note.clone(),
+                mutation: None,
             });
         }
         println!(
@@ -83,7 +83,7 @@ fn run() -> Result<(), String> {
                 analysis.statistics.total_stimulus
             );
             if let Some(mutation) = &analysis.recommended_mutation {
-                println!("  recommended mutation: {mutation}");
+                println!("  recommended mutation: {:?}", mutation);
             } else if harness.config().retain_elite {
                 println!("  no mutation suggested; candidate retained for future iteration");
             } else {
@@ -276,6 +276,7 @@ fn simulate_candidate(
                     summary_threat = Some(*threat_score);
                     summary_cells = Some(*cell_count as u32);
                 }
+                morphogenetic_security::telemetry::TelemetryEvent::Scenario { .. } => {}
             }
         }
 
@@ -329,7 +330,6 @@ fn parse_seed(raw: &str) -> Result<SeedCandidate, String> {
     Ok(SeedCandidate {
         id: id.to_string(),
         scenario: scenario_path,
-        note: None,
     })
 }
 
@@ -461,5 +461,4 @@ struct CliArgs {
 struct SeedCandidate {
     id: String,
     scenario: PathBuf,
-    note: Option<String>,
 }

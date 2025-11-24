@@ -35,6 +35,15 @@ impl EvolutionConfig {
     }
 }
 
+/// A structured mutation to be applied to an attack candidate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Mutation {
+    IncreaseStimulus { topic: String, factor: f32 },
+    DecreaseStimulus { topic: String, factor: f32 },
+    AddSpike { step: u32, intensity: f32 },
+    ChangeEventTiming { event_index: usize, new_step: u32 },
+}
+
 /// Description of an attack scenario candidate scheduled for execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttackCandidate {
@@ -48,8 +57,8 @@ pub struct AttackCandidate {
     pub generation: u32,
     /// Optional identifier of the candidate that produced this mutation.
     pub parent_id: Option<String>,
-    /// Optional notes describing the mutation applied to derive the candidate.
-    pub mutation_note: Option<String>,
+    /// Optional mutation that produced this candidate.
+    pub mutation: Option<Mutation>,
 }
 
 /// Recorded outcome after executing a candidate against the runtime.
@@ -91,7 +100,7 @@ pub struct HarnessAnalysis {
     pub statistics: RunStatistics,
     pub fitness_score: f32,
     pub breach_observed: bool,
-    pub recommended_mutation: Option<String>,
+    pub recommended_mutation: Option<Mutation>,
 }
 
 /// Per-step telemetry summary used to build [`RunStatistics`].
@@ -327,7 +336,7 @@ impl AdversarialHarness {
                 let stats = build_statistics_from_steps(&report.steps)?;
                 let analysis = analyze_run_statistics(stats);
                 let (outcome, follow_up, analysis) = self.finalize_evaluation(candidate, analysis);
-                let backlog_len_after = self.backlog_len();
+                let backlog_len_after = self.backlog.len();
                 evaluations.push(EvaluatedCandidate {
                     candidate: candidate_snapshot,
                     outcome,
@@ -385,7 +394,7 @@ impl AdversarialHarness {
                 stimulus_ref: candidate.stimulus_ref.clone(),
                 generation: next_generation,
                 parent_id: Some(candidate.id.clone()),
-                mutation_note: Some(mutation),
+                mutation: Some(mutation),
             }
         });
 
@@ -393,7 +402,7 @@ impl AdversarialHarness {
             self.enqueue(mutant.clone());
         } else if self.config.retain_elite {
             let mut retained = candidate;
-            retained.mutation_note = Some("retained for future mutation".to_string());
+            retained.mutation = None;
             self.enqueue(retained);
         }
 
@@ -731,7 +740,7 @@ fn recommend_mutation(
     stats: &RunStatistics,
     fitness_score: f32,
     breach_observed: bool,
-) -> Option<String> {
+) -> Option<Mutation> {
     let activator = stats
         .stimuli_by_topic
         .get("activator")
@@ -758,48 +767,52 @@ fn recommend_mutation(
 
     if fitness_score < 0.4 {
         if activator <= inhibitor {
-            Some("increase activator spike amplitude and damp inhibitor recovery".to_string())
+            Some(Mutation::IncreaseStimulus {
+                topic: "activator".to_string(),
+                factor: 1.2,
+            })
         } else {
-            Some(
-                "inject cooperative decoys ahead of activator bursts to overwhelm defences"
-                    .to_string(),
-            )
+            Some(Mutation::IncreaseStimulus {
+                topic: "inhibitor".to_string(),
+                factor: 1.2,
+            })
         }
     } else if breach_observed {
         if stats.total_signals < stats.step_count as u32 {
-            Some("extend breach window with sustained activator pulses post-impact".to_string())
+            Some(Mutation::AddSpike {
+                step: stats.step_count as u32 / 2,
+                intensity: 0.5,
+            })
         } else {
-            Some(
-                "tighten attack cadence: alternate activator and inhibitor surges faster"
-                    .to_string(),
-            )
+            Some(Mutation::DecreaseStimulus {
+                topic: "inhibitor".to_string(),
+                factor: 0.8,
+            })
         }
     } else if lineage_pressure < 0.2 {
-        Some(
-            "escalate lineage churn by targeting secondary cell lineages with staggered activator bursts"
-                .to_string(),
-        )
+        Some(Mutation::IncreaseStimulus {
+            topic: "activator".to_string(),
+            factor: 1.5,
+        })
     } else if dominant_ratio < 0.5 && stats.total_lineage_shifts > 3 {
         if let Some((lineage, _)) = dominant_lineage_entry {
-            Some(format!(
-                "focus mutation pressure on the {lineage} lineage to consolidate takeovers"
-            ))
+            Some(Mutation::IncreaseStimulus {
+                topic: lineage.clone(),
+                factor: 1.5,
+            })
         } else {
-            Some(
-                "focus mutation pressure on the highest-yield lineage to consolidate takeovers"
-                    .to_string(),
-            )
+            None
         }
     } else if reproduction_rate > 0.6 {
-        Some(
-            "slow defensive replication by scheduling inhibitor spikes before activator peaks"
-                .to_string(),
-        )
+        Some(Mutation::IncreaseStimulus {
+            topic: "inhibitor".to_string(),
+            factor: 1.5,
+        })
     } else if inhibitor > activator && activator > 0.0 {
-        Some(
-            "rebalance stimuli by boosting activator intensity relative to inhibitor damping"
-                .to_string(),
-        )
+        Some(Mutation::IncreaseStimulus {
+            topic: "activator".to_string(),
+            factor: 1.2,
+        })
     } else {
         None
     }
@@ -812,7 +825,7 @@ fn outcome_note_for_analysis(analysis: &HarnessAnalysis) -> String {
         stats.avg_threat, stats.total_replications, stats.total_signals
     );
     if let Some(mutation) = &analysis.recommended_mutation {
-        format!("{base}; next_mutation={mutation}")
+        format!("{base}; next_mutation={:?}", mutation)
     } else {
         base
     }
@@ -840,7 +853,7 @@ mod tests {
             stimulus_ref: None,
             generation: 0,
             parent_id: None,
-            mutation_note: None,
+            mutation: None,
         });
 
         harness.enqueue(AttackCandidate {
@@ -849,7 +862,10 @@ mod tests {
             stimulus_ref: None,
             generation: 1,
             parent_id: Some("seed-1".into()),
-            mutation_note: Some("increased inhibitor spike".into()),
+            mutation: Some(Mutation::IncreaseStimulus {
+                topic: "inhibitor".to_string(),
+                factor: 1.5,
+            }),
         });
 
         harness.enqueue(AttackCandidate {
@@ -858,7 +874,10 @@ mod tests {
             stimulus_ref: None,
             generation: 1,
             parent_id: Some("seed-1".into()),
-            mutation_note: Some("shortened tick window".into()),
+            mutation: Some(Mutation::AddSpike {
+                step: 10,
+                intensity: 0.8,
+            }),
         });
 
         let first_batch = harness.next_batch();
@@ -951,7 +970,7 @@ mod tests {
             stimulus_ref: Some("docs/examples/ci-stimulus.jsonl".into()),
             generation: 0,
             parent_id: None,
-            mutation_note: None,
+            mutation: None,
         };
 
         let (outcome, maybe_mutation, analysis) = harness
@@ -984,7 +1003,10 @@ mod tests {
             stimulus_ref: None,
             generation: 0,
             parent_id: None,
-            mutation_note: Some("initial seed".into()),
+            mutation: Some(Mutation::AddSpike {
+                step: 0,
+                intensity: 0.0,
+            }),
         };
 
         let steps = vec![StepMetrics {
@@ -1028,7 +1050,7 @@ mod tests {
             stimulus_ref: None,
             generation: 0,
             parent_id: None,
-            mutation_note: None,
+            mutation: None,
         });
         harness.enqueue(AttackCandidate {
             id: "loop-seed-2".into(),
@@ -1036,7 +1058,7 @@ mod tests {
             stimulus_ref: None,
             generation: 0,
             parent_id: None,
-            mutation_note: None,
+            mutation: None,
         });
 
         let evaluations = harness
@@ -1099,7 +1121,7 @@ mod tests {
                     stimulus_ref: None,
                     generation: idx,
                     parent_id: None,
-                    mutation_note: None,
+                    mutation: None,
                 },
                 fitness_score: idx as f32,
                 breach_observed: false,
@@ -1145,7 +1167,7 @@ mod tests {
                 stimulus_ref: None,
                 generation: 0,
                 parent_id: None,
-                mutation_note: None,
+                mutation: None,
             },
             fitness_score: 0.5,
             breach_observed: false,
@@ -1220,12 +1242,11 @@ mod tests {
         let suggestion =
             recommend_mutation(&stats, fitness, breach).expect("expected lineage churn guidance");
         assert!(
-            suggestion.contains("lineage"),
-            "expected suggestion to reference lineage guidance: {suggestion}"
-        );
-        assert!(
-            suggestion.contains("churn"),
-            "expected suggestion to mention churn: {suggestion}"
+            match suggestion {
+                Mutation::IncreaseStimulus { ref topic, .. } => topic == "activator",
+                _ => false,
+            },
+            "expected suggestion to be IncreaseStimulus for activator: {suggestion:?}"
         );
     }
 
@@ -1258,14 +1279,15 @@ mod tests {
         let suggestion =
             recommend_mutation(&stats, fitness, breach).expect("expected dominant lineage focus");
         assert!(
-            suggestion.contains("focus mutation pressure"),
-            "expected focus guidance: {suggestion}"
+            matches!(suggestion,  Mutation::IncreaseStimulus { .. }),
+            "expected focus guidance: {suggestion:?}"
         );
-        let lineages = ["IntrusionDetection", "AdaptiveProbe", "Recon"];
-        assert!(
-            lineages.iter().any(|lineage| suggestion.contains(lineage)),
-            "expected suggestion to reference a known lineage: {suggestion}"
-        );
+        if let Mutation::IncreaseStimulus { topic, .. } = suggestion {
+            let lineages = ["IntrusionDetection", "AdaptiveProbe", "Recon"];
+                    assert!(
+                        lineages.iter().any(|lineage| *topic == **lineage),
+                        "expected suggestion to reference a known lineage: {topic}"
+                    );        }
     }
 
     #[derive(Serialize)]

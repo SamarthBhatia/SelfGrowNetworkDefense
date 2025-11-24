@@ -2,7 +2,7 @@ use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
 use morphogenetic_security::signaling::Signal;
 use morphogenetic_security::stimulus::StimulusSchedule;
-use morphogenetic_security::telemetry::{InMemorySink, TelemetryPipeline};
+use morphogenetic_security::telemetry::{InMemorySink, TelemetryPipeline, TelemetryEvent, TelemetrySink};
 use morphogenetic_security::{MorphogeneticApp, ScenarioConfig};
 use std::cmp::max;
 use std::env;
@@ -21,7 +21,7 @@ fn main() {
         cells.push(cell);
     }
 
-    let telemetry_pipeline = runtime
+    let mut telemetry_pipeline = runtime
         .telemetry_path
         .as_ref()
         .map(|path| TelemetryPipeline::with_file(path))
@@ -31,6 +31,13 @@ fn main() {
             process::exit(1);
         })
         .unwrap_or_else(|| TelemetryPipeline::new(InMemorySink::default(), None));
+
+    telemetry_pipeline.record(
+        std::time::SystemTime::now(),
+        TelemetryEvent::Scenario {
+            name: config.scenario_name.clone(),
+        },
+    );
 
     let mut app = MorphogeneticApp::new(cells, telemetry_pipeline);
 

@@ -5,9 +5,7 @@ Shared utilities for working with morphogenetic telemetry artifacts.
 This module centralises common parsing logic so multiple analytics scripts
 can build on consistent primitives without duplicating JSONL handling.
 """
-
 from __future__ import annotations
-
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -20,9 +18,11 @@ OrderedEventStream = List[Tuple[int, dict]]
 StimulusSummary = Dict[int, dict]
 
 
-def load_telemetry_per_step(path: Path) -> Tuple[PerStepTelemetry, OrderedEventStream]:
+def load_telemetry_per_step(
+    path: Path,
+) -> Tuple[PerStepTelemetry, OrderedEventStream, str | None]:
     """
-    Load telemetry JSONL and return both per-step summaries and the ordered events list.
+    Load telemetry JSONL and return per-step summaries, ordered events, and scenario name.
 
     Each StepSummary event finalises the metrics accumulated since the previous
     summary. The returned dictionary maps step numbers to a metrics payload that
@@ -34,8 +34,20 @@ def load_telemetry_per_step(path: Path) -> Tuple[PerStepTelemetry, OrderedEventS
     per_step: PerStepTelemetry = {}
     buffer: List[dict] = []
     ordered_events: OrderedEventStream = []
+    scenario_name: str | None = None
 
     with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+                if "Scenario" in payload.get("event", {}):
+                    scenario_name = payload["event"]["Scenario"].get("name")
+                    break
+            except json.JSONDecodeError:
+                pass  # Ignore if the line is not valid JSON
+        handle.seek(0)
         for line in handle:
             if not line.strip():
                 continue
@@ -59,7 +71,7 @@ def load_telemetry_per_step(path: Path) -> Tuple[PerStepTelemetry, OrderedEventS
             else:
                 buffer.append(event)
 
-    return per_step, ordered_events
+    return per_step, ordered_events, scenario_name
 
 
 def _digest_buffer(buffer: Iterable[dict]) -> dict:
