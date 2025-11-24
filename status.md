@@ -281,17 +281,18 @@ s on lineage pressure.
 ### 2025-11-24 — Session 19
 - **Focus**: Implement more sophisticated mutation strategies and selection mechanisms within the adversarial harness.
 - **Actions**:
-    - Refactored `recommend_mutation` in `src/adversarial.rs` to use a new `generate_mutation_pool` function.
-    - Implemented `generate_mutation_pool` to create a `Vec<Mutation>` based on `RunStatistics`, `fitness_score`, and `breach_observed`. This pool is generated using a set of weighted conditional rules and includes a random small change for exploration.
-    - Updated `HarnessAnalysis` to use `Vec<Mutation>` for `recommended_mutation`.
-    - Updated `finalize_evaluation` to pick the first mutation from the recommended mutations.
-    - Fixed unused import warnings and other compilation errors related to the changes in this session.
+    - Added `perform_crossover` function to `src/adversarial.rs` to create new `AttackCandidate`s by combining properties of two parents.
+    - Updated `HarnessAnalysis` to use `Option<Mutation>` for `recommended_mutation`.
+    - Updated `recommend_mutation` to use `generate_mutation_pool` and return `Option<Mutation>`.
+    - Added `generate_mutation_pool` function to `src/adversarial.rs` to create a weighted pool of `Mutation` options.
+    - Fixed issues with `rand` crate imports and usage.
+    - Corrected field name `stimuli_by_topic` to `stimulus_by_topic` in `StatsAccumulator::add_step`.
+    - Fixed compilation errors in `finalize_evaluation` and tests related to the `recommended_mutation` type and usage.
 - **Open Questions**:
-    - How to implement a robust crossover mechanism that intelligently combines elements of two parent attack candidates.
     - How to implement different selection mechanisms (e.g., tournament selection, roulette wheel selection) to drive the evolution process effectively.
     - What metrics should be used to evaluate the diversity of the generated attack candidates?
 - **Next Session Starting Point**:
-    - Implement a crossover mechanism for `AttackCandidate`s in `src/adversarial.rs` that combines aspects of two parent candidates.
+    - Implement selection mechanisms (e.g., tournament selection, roulette wheel selection) to drive the evolution process effectively.
                                                                                                                                                        
 ## Working Agreements                                                                                                                                  
 - Always record start-of-session intent and end-of-session summary in this document.                                                                   
