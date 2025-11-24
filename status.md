@@ -88,7 +88,7 @@ k`; expanded unit tests; reran `cargo fmt` and `cargo test`.
  at scale?                                                                                                                                             
 - **Next Session Starting Point**: Persist telemetry events for analysis and prototype an external stimulus CLI feeding the signal bus.                
                                                                                                                                                        
-### 2025-10-30 — Session 05                                                                                                                            
+### 2025-10-31 — Session 05                                                                                                                            
 - **Focus**: Persist telemetry and enable external stimulus injection.                                                                                 
 - **Actions**: Added JSONL telemetry sink with composite pipeline, revamped CLI parsing, integrated per-step stimulus schedule ingestion, and created a
  `stimulus` helper binary; expanded unit coverage and re-ran `cargo fmt`/`cargo test`.                                                                 
@@ -96,7 +96,7 @@ k`; expanded unit tests; reran `cargo fmt` and `cargo test`.
 (sockets, pipes, REST)?                                                                                                                                
 - **Next Session Starting Point**: Build telemetry analytics tooling and draft YAML schema documentation before introducing CI harnesses.              
                                                                                                                                                        
-### 2025-10-30 — Session 06                                                                                                                            
+### 2025-10-31 — Session 06                                                                                                                            
 - **Focus**: Capture scenario documentation and produce first-pass telemetry analytics.                                                                
 - **Actions**: Authored schema guide and example YAML manifests under `docs/`; added `scripts/analyze_telemetry.py` for JSONL summaries; created teleme
 try analysis documentation.                                                                                                                            
@@ -104,7 +104,7 @@ try analysis documentation.
 genetic dynamics?                                                                                                                                      
 - **Next Session Starting Point**: Expand analytics into richer reports, then set up CI and attack simulation scaffolding.                             
                                                                                                                                                        
-### 2025-10-30 — Session 07                                                                                                                            
+### 2025-10-31 — Session 07                                                                                                                            
 - **Focus**: Enrich analytics, codify signal guidance, and add baseline CI automation.                                                                 
 - **Actions**: Enhanced telemetry analysis script with plotting support, documented usage, added GitHub Actions workflow for fmt/clippy/tests, and publ
 ished signal taxonomy guidance under `docs/`.                                                                                                          
@@ -112,7 +112,7 @@ ished signal taxonomy guidance under `docs/`.
 emetry for analytics?                                                                                                                                  
 - **Next Session Starting Point**: Build advanced analytics (timeline correlation) and design the attack simulation pipeline to slot into CI.          
                                                                                                                                                        
-### 2025-10-30 — Session 08                                                                                                                            
+### 2025-10-31 — Session 08                                                                                                                            
 - **Focus**: Correlate stimuli with per-step telemetry and stand up attack simulation smoke testing.                                                   
 - **Actions**: Added StepSummary telemetry events, created `telemetry_correlate.py`, upgraded the analytics script with plotting support, authored atta
 ck simulation docs, and wired a CI smoke test via `run_attack_simulation.sh`.                                                                          
@@ -120,7 +120,7 @@ ck simulation docs, and wired a CI smoke test via `run_attack_simulation.sh`.
 I-friendly runs?                                                                                                                                       
 - **Next Session Starting Point**: Build richer analytics dashboards and design the adversarial attack harness feeding future CI jobs.                 
                                                                                                                                                        
-### 2025-10-30 — Session 09                                                                                                                            
+### 2025-10-31 — Session 09                                                                                                                            
 - **Focus**: Extend telemetry analytics toward richer dashboards and outline the adversarial attack evolution harness.                                 
 - **Plan**:                                                                                                                                            
   - Review existing telemetry analysis tooling to pinpoint dashboard-ready metrics and data flows.                                                     
@@ -239,7 +239,7 @@ s on lineage pressure.
     - What new mutation strategies should be implemented beyond simple stimulus changes and spike additions?
     - How can we visualize the effects of structured mutations in the TUI or web dashboards?
 - **Next Session Starting Point**:
-    - Integrate early smoke tests of the adversarial attack evolution harness into CI.
+    - Implement a mechanism to apply structured `Mutation` variants to modify scenario configurations and stimulus schedules.
 
 ### 2025-11-24 — Session 16
 - **Focus**: Integrate early smoke tests of the adversarial attack evolution harness into CI.
@@ -251,7 +251,7 @@ s on lineage pressure.
 - **Open Questions**:
     - What are the full requirements for the adversarial attack evolution harness? How many generations should be run? What metrics should be tracked for success/failure?
 - **Next Session Starting Point**:
-    - Define a more comprehensive set of requirements for the adversarial attack evolution harness.
+    - Implement a mechanism to apply structured `Mutation` variants to modify scenario configurations and stimulus schedules.
                                                                                                                                                        
 ## Working Agreements                                                                                                                                  
 - Always record start-of-session intent and end-of-session summary in this document.                                                                   
