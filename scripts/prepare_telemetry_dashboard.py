@@ -55,6 +55,12 @@ def parse_args() -> argparse.Namespace:
         help="Destination CSV file capturing per-step metrics.",
     )
     parser.add_argument(
+        "--summary-json",
+        type=Path,
+        default=None,
+        help="Optional destination for run summary statistics JSON.",
+    )
+    parser.add_argument(
         "--vega-lite",
         dest="vega_lite",
         type=Path,
@@ -91,6 +97,12 @@ def main() -> None:
 
     write_csv(rows, args.output)
     print(f"[info] Wrote {len(rows)} step rows to {args.output}")
+
+    if args.summary_json:
+        summary = {"stats": stats, "annotations": annotations}
+        args.summary_json.parent.mkdir(parents=True, exist_ok=True)
+        args.summary_json.write_text(json.dumps(summary, indent=2))
+        print(f"[info] Wrote summary to {args.summary_json}")
 
     if args.lineage_output:
         lineage_rows = build_lineage_rows(rows)
@@ -367,7 +379,7 @@ def _compute_lineage_pressure(stats: Dict[str, object]) -> float:
     step_count = max(1, int(stats["step_count"]))
     total_lineage_shifts = float(stats["total_lineage_shifts"])
     pressure = total_lineage_shifts / step_count
-    return _clamp(pressure / 0.6)
+    return _clamp(pressure / 1.0)
 
 
 def _compute_lineage_focus_ratio(stats: Dict[str, object]) -> float:

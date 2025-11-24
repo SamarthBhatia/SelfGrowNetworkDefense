@@ -1,0 +1,17 @@
+scenario_name: high-mutation
+initial_cell_count: 4
+simulation_steps: 20
+threat_profile:
+  background_threat: 0.4
+  spike_threshold: 0.7
+spikes:
+  - step: 2
+    intensity: 0.5
+  - step: 4
+    intensity: 0.6
+  - step: 6
+    intensity: 0.7
+  - step: 8
+    intensity: 0.8
+  - step: 10
+    intensity: 0.9
