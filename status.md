@@ -240,6 +240,18 @@ s on lineage pressure.
     - How can we visualize the effects of structured mutations in the TUI or web dashboards?
 - **Next Session Starting Point**:
     - Integrate early smoke tests of the adversarial attack evolution harness into CI.
+
+### 2025-11-24 — Session 16
+- **Focus**: Integrate early smoke tests of the adversarial attack evolution harness into CI.
+- **Actions**:
+    - Reviewed existing CI configuration (`.github/workflows/ci.yml`).
+    - Created `scripts/run_evolution_smoke_test.sh` to initialize a harness state, enqueue a seed candidate, run a few generations of the adversarial loop, and assert on the resulting harness state and outcomes.
+    - Made `scripts/run_evolution_smoke_test.sh` executable.
+    - Added a new step named "Evolution Smoke Test" to the `build` job in `.github/workflows/ci.yml` to execute the new smoke test script.
+- **Open Questions**:
+    - What are the full requirements for the adversarial attack evolution harness? How many generations should be run? What metrics should be tracked for success/failure?
+- **Next Session Starting Point**:
+    - Define a more comprehensive set of requirements for the adversarial attack evolution harness.
                                                                                                                                                        
 ## Working Agreements                                                                                                                                  
 - Always record start-of-session intent and end-of-session summary in this document.                                                                   
