@@ -193,22 +193,34 @@ uts.
 - **Next Session Starting Point**:                                                                                                                     
   - Decide on aggregated export format (JSON vs. CSV augmentation), wire the new fields into the pitch demo notebooks, and evaluate lineage pressure th
 resholds against additional mutation scenarios.                                                                                                        
+                                                                                                                                                       
+### 2025-11-24 — Session 13                                                                                                                            
+- **Focus**: Enhance telemetry analysis and evaluate lineage pressure metrics.                                                                         
+- **Actions**:                                                                                                                                         
+    - Added a `--summary-json` argument to `prepare_telemetry_dashboard.py` to export aggregated run statistics.                                       
+    - Increased the lineage pressure normalization factor in `prepare_telemetry_dashboard.py` to `1.0` for better granularity.                         
+    - Updated `pitch_demo.sh` to generate the new summary JSON files and updated the `pitch_cheatsheet.md` accordingly.                                
+    - Created a new `high_mutation` scenario and an `evaluate_lineage_pressure.sh` script to test and analyze the impact of different mutation scenario
+s on lineage pressure.                                                                                                                                 
+    - Removed `status.md` from `.gitignore` to ensure it is tracked in version control as per project guidelines.                                      
+- **Open Questions**:                                                                                                                                  
+    - Are there other metrics that would be valuable to include in the summary JSON export?                                                            
+    - Should the `evaluate_lineage_pressure.sh` script be integrated into the CI pipeline?                                                             
+- **Next Session Starting Point**:                                                                                                                     
+    - Review the updated lineage pressure metrics across various scenarios to confirm the new normalization factor is effective.                       
+    - Decide whether to add more metrics to the summary JSON export.                                                                                   
 
-### 2025-11-24 — Session 13
-- **Focus**: Enhance telemetry analysis and evaluate lineage pressure metrics.
+### 2025-11-24 — Session 14
+- **Focus**: Enhance telemetry summary and address outstanding issues.
 - **Actions**:
-    - Added a `--summary-json` argument to `prepare_telemetry_dashboard.py` to export aggregated run statistics.
-    - Increased the lineage pressure normalization factor in `prepare_telemetry_dashboard.py` to `1.0` for better granularity.
-    - Updated `pitch_demo.sh` to generate the new summary JSON files and updated the `pitch_cheatsheet.md` accordingly.
-    - Created a new `high_mutation` scenario and an `evaluate_lineage_pressure.sh` script to test and analyze the impact of different mutation scenarios on lineage pressure.
-    - Removed `status.md` from `.gitignore` to ensure it is tracked in version control as per project guidelines.
+    - Confirmed the effectiveness of the new lineage pressure normalization factor.
+    - Added `scenario_name`, `timestamp`, and `final_cell_count` to the summary JSON export for better run tracking and comparison.
+    - Resolved the issue of `scenario_name` being `null` by adding a `Scenario` event to the telemetry pipeline.
 - **Open Questions**:
-    - Are there other metrics that would be valuable to include in the summary JSON export?
     - Should the `evaluate_lineage_pressure.sh` script be integrated into the CI pipeline?
 - **Next Session Starting Point**:
-    - Review the updated lineage pressure metrics across various scenarios to confirm the new normalization factor is effective.
-    - Decide whether to add more metrics to the summary JSON export.
-
+    - Design the adversarial attack evolution harness and integrate early smoke tests into CI.
+                                                                                                                                                       
 ## Working Agreements                                                                                                                                  
 - Always record start-of-session intent and end-of-session summary in this document.                                                                   
 - Mirror key changes in commit messages; include `status.md` updates in the same commit when possible.                                                 
