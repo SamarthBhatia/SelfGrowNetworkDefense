@@ -233,8 +233,6 @@ s on lineage pressure.
     - Adapted `src/bin/adversarial_cycle.rs` and `src/bin/adversarial_loop.rs` to handle the `Mutation` enum in candidate creation and output.
     - Resolved compilation errors and warnings across affected files.
     - Removed unused `initial_note` field from `CliArgs` in `src/bin/adversarial_cycle.rs` and `note` field from `SeedCandidate` in `src/bin/adversarial_loop.rs`.
-    - Implemented a mechanism to apply structured `Mutation` variants to modify scenario configurations (`src/config.rs`) and stimulus schedules (`src/stimulus.rs`).
-    - Integrated mutation application into the `simulate_candidate` function in `src/bin/adversarial_loop.rs`.
 - **Open Questions**:
     - What new mutation strategies should be implemented beyond simple stimulus changes and spike additions?
     - How can we visualize the effects of structured mutations in the TUI or web dashboards?
