@@ -282,7 +282,7 @@ s on lineage pressure.
 - **Focus**: Implement more sophisticated mutation strategies and selection mechanisms within the adversarial harness.
 - **Actions**:
     - Added `perform_crossover` function to `src/adversarial.rs` to create new `AttackCandidate`s by combining properties of two parents.
-    - Updated `HarnessAnalysis` to use `Option<Mutation>` for `recommended_mutation`.
+    - Changed `HarnessAnalysis` to use `Option<Mutation>` for `recommended_mutation`.
     - Updated `recommend_mutation` to use `generate_mutation_pool` and return `Option<Mutation>`.
     - Added `generate_mutation_pool` function to `src/adversarial.rs` to create a weighted pool of `Mutation` options.
     - Fixed issues with `rand` crate imports and usage.
@@ -293,6 +293,18 @@ s on lineage pressure.
     - What metrics should be used to evaluate the diversity of the generated attack candidates?
 - **Next Session Starting Point**:
     - Implement selection mechanisms (e.g., tournament selection, roulette wheel selection) to drive the evolution process effectively.
+
+### 2025-11-24 — Session 20
+- **Focus**: Implement selection mechanisms (e.g., tournament selection, roulette wheel selection) to drive the evolution process effectively.
+- **Actions**:
+    - Added `tournament_selection` function to `src/adversarial.rs`. This function takes a slice of `AttackOutcome`s and a tournament size, then returns a selected parent `AttackOutcome`.
+    - Added `roulette_wheel_selection` function to `src/adversarial.rs`. This function takes a slice of `AttackOutcome`s and returns a selected parent with probability proportional to its fitness.
+    - Fixed compilation errors and warnings related to these changes.
+- **Open Questions**:
+    - How to integrate these selection mechanisms into the `AdversarialHarness::run_generations` function to select candidates for mutation and crossover.
+    - What should be the criteria for choosing between different selection mechanisms?
+- **Next Session Starting Point**:
+    - Integrate selection mechanisms into `AdversarialHarness::run_generations` to choose candidates for mutation and crossover.
                                                                                                                                                        
 ## Working Agreements                                                                                                                                  
 - Always record start-of-session intent and end-of-session summary in this document.                                                                   
