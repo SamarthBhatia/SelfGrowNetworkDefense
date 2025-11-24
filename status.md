@@ -222,6 +222,23 @@ s on lineage pressure.
     - Design the adversarial attack evolution harness and integrate early smoke tests into CI.
     - Refactor the adversarial harness to use a structured `Mutation` enum.
 
+### 2025-11-24 — Session 15
+- **Focus**: Refactor adversarial harness for structured mutations and related code updates.
+- **Actions**:
+    - Defined `Mutation` enum in `src/adversarial.rs` to represent structured mutation strategies.
+    - Updated `AttackCandidate` and `HarnessAnalysis` structs to use `Option<Mutation>` for mutation information.
+    - Modified `recommend_mutation` function to return `Option<Mutation>` based on analysis.
+    - Adjusted `outcome_note_for_analysis` to properly format the structured `Mutation` for display.
+    - Updated associated test cases in `src/adversarial.rs` to reflect the new `Mutation` enum usage and corrected comparison logic.
+    - Adapted `src/bin/adversarial_cycle.rs` and `src/bin/adversarial_loop.rs` to handle the `Mutation` enum in candidate creation and output.
+    - Resolved compilation errors and warnings across affected files.
+    - Removed unused `initial_note` field from `CliArgs` in `src/bin/adversarial_cycle.rs` and `note` field from `SeedCandidate` in `src/bin/adversarial_loop.rs`.
+- **Open Questions**:
+    - How will structured `Mutation` variants be applied to scenario configurations and stimulus schedules?
+    - What new mutation strategies should be implemented beyond simple stimulus changes and spike additions?
+- **Next Session Starting Point**:
+    - Implement a mechanism to apply structured `Mutation` variants to modify scenario configurations and stimulus schedules.
+                                                                                                                                                       
 ## Working Agreements                                                                                                                                  
 - Always record start-of-session intent and end-of-session summary in this document.                                                                   
 - Mirror key changes in commit messages; include `status.md` updates in the same commit when possible.                                                 
