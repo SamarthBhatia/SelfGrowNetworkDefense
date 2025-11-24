@@ -220,7 +220,8 @@ s on lineage pressure.
     - Should the `evaluate_lineage_pressure.sh` script be integrated into the CI pipeline?
 - **Next Session Starting Point**:
     - Design the adversarial attack evolution harness and integrate early smoke tests into CI.
-                                                                                                                                                       
+    - Refactor the adversarial harness to use a structured `Mutation` enum.
+
 ## Working Agreements                                                                                                                                  
 - Always record start-of-session intent and end-of-session summary in this document.                                                                   
 - Mirror key changes in commit messages; include `status.md` updates in the same commit when possible.                                                 
