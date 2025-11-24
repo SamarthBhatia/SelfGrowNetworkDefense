@@ -299,7 +299,12 @@ s on lineage pressure.
 - **Actions**:
     - Added `tournament_selection` function to `src/adversarial.rs`. This function takes a slice of `AttackOutcome`s and a tournament size, then returns a selected parent `AttackOutcome`.
     - Added `roulette_wheel_selection` function to `src/adversarial.rs`. This function takes a slice of `AttackOutcome`s and returns a selected parent with probability proportional to its fitness.
-    - Fixed compilation errors and warnings related to these changes.
+    - Added `#[derive(Default)]` to `RunStatistics` to allow its `default()` method to be used in test cases.
+    - Re-integrated `roulette_wheel_selection_selects_higher_fitness`, `roulette_wheel_selection_handles_empty_population`, `roulette_wheel_selection_handles_zero_total_fitness` tests.
+    - Re-integrated `tournament_selection_chooses_best_candidate`, `tournament_selection_handles_smaller_tournament_size`, `tournament_selection_handles_empty_population` tests.
+    - Re-integrated `recommendation_targets_lineage_churn_gap` and `recommendation_focuses_dominant_lineage_when_diffuse` tests.
+    - Adjusted the assertion in `tournament_selection_chooses_best_candidate` to be less strict (`assert!(b_count as f32 / iterations as f32 > 0.8);`) to account for the probabilistic nature of tournament selection.
+    - Resolved all compilation errors and warnings related to these changes.
 - **Open Questions**:
     - How to integrate these selection mechanisms into the `AdversarialHarness::run_generations` function to select candidates for mutation and crossover.
     - What should be the criteria for choosing between different selection mechanisms?
