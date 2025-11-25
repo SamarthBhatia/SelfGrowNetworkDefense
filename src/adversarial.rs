@@ -38,6 +38,8 @@ pub struct EvolutionConfig {
     pub max_generations: u32,
     /// Whether to requeue high-performing candidates for mutation.
     pub retain_elite: bool,
+    /// The probability of performing crossover (0.0 to 1.0).
+    pub crossover_rate: f32,
     /// The selection strategy to use for breeding new candidates.
     pub selection_strategy: SelectionStrategy,
 }
@@ -49,6 +51,7 @@ impl EvolutionConfig {
             batch_size: 3,
             max_generations: 10,
             retain_elite: true,
+            crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
         }
     }
@@ -394,37 +397,53 @@ impl AdversarialHarness {
             let mut rng = rand::thread_rng();
 
             for _ in 0..num_new_candidates {
-                let parent_outcome = match self.config.selection_strategy {
-                    SelectionStrategy::Tournament { size } => {
-                        tournament_selection(&self.archive, size, &mut rng)
+                let new_candidate = if rng.gen_range(0.0..1.0) < self.config.crossover_rate {
+                    // Perform crossover
+                    let parent1 = match self.config.selection_strategy {
+                        SelectionStrategy::Tournament { size } => {
+                            tournament_selection(&self.archive, size, &mut rng)
+                        }
+                        SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
+                    }.map_err(|e| HarnessError::Custom(format!("Selection failed for parent 1: {}", e)))?;
+
+                    let parent2 = match self.config.selection_strategy {
+                        SelectionStrategy::Tournament { size } => {
+                            tournament_selection(&self.archive, size, &mut rng)
+                        }
+                        SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
+                    }.map_err(|e| HarnessError::Custom(format!("Selection failed for parent 2: {}", e)))?;
+
+                    perform_crossover(parent1, parent2, &mut rng)
+                } else {
+                    // Perform mutation
+                    let parent_outcome = match self.config.selection_strategy {
+                        SelectionStrategy::Tournament { size } => {
+                            tournament_selection(&self.archive, size, &mut rng)
+                        }
+                        SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
+                    }.map_err(|e| HarnessError::Custom(format!("Selection failed: {}", e)))?;
+
+                    let new_candidate_id = format!("{}-gen{}-mut{}",
+                        parent_outcome.candidate.id,
+                        gen_idx + 1,
+                        rng.gen_range(0..1000)
+                    );
+                    
+                    let mutation = recommend_mutation(&parent_outcome.statistics, parent_outcome.fitness_score, parent_outcome.breach_observed)
+                        .unwrap_or_else(|| {
+                            let topics = ["activator", "inhibitor", "reproducer"];
+                            let topic = topics.choose(&mut rng).unwrap_or(&"activator").to_string();
+                            Mutation::IncreaseStimulus { topic, factor: rng.gen_range(1.1..=1.5) }
+                        });
+
+                    AttackCandidate {
+                        id: new_candidate_id,
+                        scenario_ref: parent_outcome.candidate.scenario_ref.clone(),
+                        stimulus_ref: parent_outcome.candidate.stimulus_ref.clone(),
+                        generation: gen_idx as u32 + 1,
+                        parent_id: Some(parent_outcome.candidate.id.clone()),
+                        mutation: Some(mutation),
                     }
-                    SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
-                }.map_err(|e| HarnessError::Custom(format!("Selection failed: {}", e)))?;
-
-                // Create a new candidate from the selected parent
-                let new_candidate_id = format!("{}-gen{}-new{}",
-                    parent_outcome.candidate.id,
-                    gen_idx + 1,
-                    rng.gen_range(0..1000) // Simple way to ensure unique ID for now
-                );
-                
-                // For simplicity, apply a new random mutation
-                // In a real scenario, this would be a more sophisticated mutation/crossover based on parent_outcome's analysis
-                let mutation = recommend_mutation(&parent_outcome.statistics, parent_outcome.fitness_score, parent_outcome.breach_observed)
-                    .unwrap_or_else(|| {
-                        // If no specific mutation is recommended, increase a random stimulus
-                        let topics = ["activator", "inhibitor", "reproducer"]; // Example topics
-                        let topic = topics.choose(&mut rng).unwrap_or(&"activator").to_string();
-                        Mutation::IncreaseStimulus { topic, factor: rng.gen_range(1.1..=1.5) }
-                    });
-
-                let new_candidate = AttackCandidate {
-                    id: new_candidate_id,
-                    scenario_ref: parent_outcome.candidate.scenario_ref.clone(),
-                    stimulus_ref: parent_outcome.candidate.stimulus_ref.clone(),
-                    generation: gen_idx as u32 + 1,
-                    parent_id: Some(parent_outcome.candidate.id.clone()),
-                    mutation: Some(mutation),
                 };
                 self.enqueue(new_candidate);
             }
@@ -614,6 +633,52 @@ pub fn roulette_wheel_selection<'a, R: Rng>(
         }
         // Fallback in case of floating point inaccuracies or if no outcome is picked
         population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string()).map(|outcome| outcome)
+    }
+}
+
+/// Performs crossover between two parent outcomes to produce a new child candidate.
+///
+/// `parent1`: The first parent [`AttackOutcome`].
+/// `parent2`: The second parent [`AttackOutcome`].
+/// `rng`: A mutable reference to a random number generator.
+///
+/// Returns a new child [`AttackCandidate`].
+pub fn perform_crossover<R: Rng>(
+    parent1: &AttackOutcome,
+    parent2: &AttackOutcome,
+    rng: &mut R,
+) -> AttackCandidate {
+    // Simple crossover: take scenario from parent1 and stimulus from parent2.
+    // A more complex implementation could involve merging scenario/stimulus files content.
+    let child_scenario_ref = parent1.candidate.scenario_ref.clone();
+    let child_stimulus_ref = parent2.candidate.stimulus_ref.clone();
+    let child_generation = std::cmp::max(parent1.candidate.generation, parent2.candidate.generation) + 1;
+    let child_id = format!("crossover-{}-{}-gen{}",
+        parent1.candidate.id,
+        parent2.candidate.id,
+        child_generation
+    );
+
+    // Choose mutation from one of the parents, or create a new one if parents have no mutation
+    let mutation = if rng.gen_bool(0.5) {
+        parent1.candidate.mutation.clone()
+    } else {
+        parent2.candidate.mutation.clone()
+    }.or_else(|| {
+        // Fallback to a random mutation if both parents have no mutation
+        let topics = ["activator", "inhibitor", "reproducer"];
+        let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
+        Some(Mutation::IncreaseStimulus { topic, factor: rng.gen_range(1.1..=1.5) })
+    });
+
+
+    AttackCandidate {
+        id: child_id,
+        scenario_ref: child_scenario_ref,
+        stimulus_ref: child_stimulus_ref,
+        generation: child_generation,
+        parent_id: Some(format!("{},{}", parent1.candidate.id, parent2.candidate.id)),
+        mutation,
     }
 }
 
@@ -1045,6 +1110,7 @@ mod tests {
             batch_size: 1,
             max_generations: 5,
             retain_elite: true,
+            crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
@@ -1093,6 +1159,7 @@ mod tests {
             batch_size: 2,
             max_generations: 5,
             retain_elite: false,
+            crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
@@ -1208,6 +1275,7 @@ mod tests {
             batch_size: 1,
             max_generations: 3,
             retain_elite: false,
+            crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
@@ -1245,6 +1313,7 @@ mod tests {
             batch_size: 1,
             max_generations: 4,
             retain_elite: true,
+            crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
@@ -1293,6 +1362,7 @@ mod tests {
             batch_size: 1,
             max_generations: 5,
             retain_elite: false,
+            crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
@@ -1348,6 +1418,7 @@ mod tests {
             batch_size: 1,
             max_generations: 2,
             retain_elite: false,
+            crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
@@ -1396,6 +1467,7 @@ mod tests {
             batch_size: 1,
             max_generations: 0,
             retain_elite: false,
+            crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
@@ -1543,6 +1615,58 @@ mod tests {
                         lineages.iter().any(|lineage| *topic == **lineage),
                         "expected suggestion to reference a known lineage: {topic}"
                     );        }
+    }
+
+    #[test]
+    fn perform_crossover_creates_child() {
+        let parent1_outcome = AttackOutcome {
+            candidate: AttackCandidate {
+                id: "parent1".to_string(),
+                scenario_ref: "scenario1.yaml".to_string(),
+                stimulus_ref: Some("stimulus1.jsonl".to_string()),
+                generation: 1,
+                parent_id: None,
+                mutation: Some(Mutation::AddSpike { step: 10, intensity: 0.5 }),
+            },
+            fitness_score: 0.7,
+            breach_observed: true,
+            notes: None,
+            statistics: RunStatistics {
+                step_count: 1, avg_threat: 0.1, max_threat: 0.2, avg_cell_count: 1.0,
+                min_cell_count: 1, max_cell_count: 1, total_replications: 0, total_signals: 0,
+                total_lineage_shifts: 0, total_stimulus: 0.0, signals_by_topic: HashMap::new(),
+                lineage_by_type: HashMap::new(), stimuli_by_topic: HashMap::new(),
+            },
+        };
+
+        let parent2_outcome = AttackOutcome {
+            candidate: AttackCandidate {
+                id: "parent2".to_string(),
+                scenario_ref: "scenario2.yaml".to_string(),
+                stimulus_ref: Some("stimulus2.jsonl".to_string()),
+                generation: 2,
+                parent_id: None,
+                mutation: Some(Mutation::IncreaseStimulus { topic: "activator".to_string(), factor: 1.2 }),
+            },
+            fitness_score: 0.8,
+            breach_observed: true,
+            notes: None,
+            statistics: RunStatistics {
+                step_count: 1, avg_threat: 0.1, max_threat: 0.2, avg_cell_count: 1.0,
+                min_cell_count: 1, max_cell_count: 1, total_replications: 0, total_signals: 0,
+                total_lineage_shifts: 0, total_stimulus: 0.0, signals_by_topic: HashMap::new(),
+                lineage_by_type: HashMap::new(), stimuli_by_topic: HashMap::new(),
+            },
+        };
+
+        let mut rng = rand::thread_rng();
+        let child = perform_crossover(&parent1_outcome, &parent2_outcome, &mut rng);
+
+        assert_eq!(child.scenario_ref, "scenario1.yaml");
+        assert_eq!(child.stimulus_ref, Some("stimulus2.jsonl".to_string()));
+        assert_eq!(child.generation, 3);
+        assert!(child.id.starts_with("crossover-parent1-parent2-gen3"));
+        assert!(child.mutation.is_some());
     }
 
     #[derive(Serialize)]
