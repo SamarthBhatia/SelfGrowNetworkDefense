@@ -303,7 +303,7 @@ s on lineage pressure.
     - Re-integrated `roulette_wheel_selection_selects_higher_fitness`, `roulette_wheel_selection_handles_empty_population`, `roulette_wheel_selection_handles_zero_total_fitness` tests.
     - Re-integrated `tournament_selection_chooses_best_candidate`, `tournament_selection_handles_smaller_tournament_size`, `tournament_selection_handles_empty_population` tests.
     - Re-integrated `recommendation_targets_lineage_churn_gap` and `recommendation_focuses_dominant_lineage_when_diffuse` tests.
-    - Adjusted the assertion in `tournament_selection_chooses_best_candidate` to be less strict (`assert!(b_count as f32 / iterations as f32 > 0.8);`) to account for the probabilistic nature of tournament selection.
+    - Adjusted the assertion in `tournament_selection_chooses_best_best_candidate` to be less strict (`assert!(b_count as f32 / iterations as f32 > 0.8);`) to account for the probabilistic nature of tournament selection.
     - Resolved all compilation errors and warnings related to these changes.
 - **Open Questions**:
     - How to integrate these selection mechanisms into the `AdversarialHarness::run_generations` function to select candidates for mutation and crossover.
@@ -373,3 +373,24 @@ s on lineage pressure.
     - The original task is complete. What is the next priority?
 - **Next Session Starting Point**:
     - Await user feedback on the next steps.
+
+### 2025-11-25 — Session 26
+- **Focus**: Implement sophisticated mutation and crossover strategies.
+- **Actions**:
+    - Defined `CrossoverStrategy` enum with `Uniform` variant and `MutationStrategy` enum with `Random` variant.
+    - Updated `EvolutionConfig` to include `crossover_strategy` and `mutation_strategy` fields and updated `default_smoke_test`.
+    - Updated all test cases instantiating `EvolutionConfig` to include the new strategy fields.
+    - Implemented `uniform_crossover_stimulus` function for performing uniform crossover on stimulus schedules.
+    - Updated `perform_crossover` function signature to accept `artifact_root` and `CrossoverStrategy`, and modified its implementation to use `uniform_crossover_stimulus` for stimulus crossover.
+    - Updated `run_generations` function signature to accept `artifact_root` and passed it to `perform_crossover`.
+    - Created `perform_mutation` function to encapsulate mutation logic and integrated it into `run_generations`.
+    - Added a unit test `test_uniform_crossover_stimulus` to verify the uniform crossover logic.
+    - Added a unit test `test_perform_mutation` to verify the mutation logic.
+    - Fixed compiler errors and warnings related to module imports and borrow checker issues.
+    - Verified that all unit tests and binaries compile and pass.
+- **Open Questions**:
+    - What are the full requirements for the adversarial attack evolution harness? How many generations should be run? What metrics should be tracked for success/failure? (Copied from previous session)
+    - How can we visualize the effects of structured mutations in the TUI or web dashboards? (Copied from previous session)
+- **Next Session Starting Point**:
+    - Discuss new mutation and crossover strategies to implement.
+    - Refine existing strategies based on analytical insights.

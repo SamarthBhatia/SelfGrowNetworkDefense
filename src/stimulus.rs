@@ -16,11 +16,14 @@ pub struct StimulusCommand {
 
 #[allow(dead_code)]
 pub struct StimulusSchedule {
-    commands: BTreeMap<u32, Vec<StimulusCommand>>,
-    source: Option<PathBuf>,
+    pub commands: BTreeMap<u32, Vec<StimulusCommand>>,
+    pub source: Option<PathBuf>,
 }
 
 impl StimulusSchedule {
+    pub fn new(commands: BTreeMap<u32, Vec<StimulusCommand>>, source: Option<PathBuf>) -> Self {
+        Self { commands, source }
+    }
     #[allow(dead_code)]
     pub fn load<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let reader = BufReader::new(OpenOptions::new().read(true).open(path.as_ref())?);

@@ -18,7 +18,8 @@ use rand::Rng;
 
 use crate::config;
 use crate::config::ConfigError;
-use crate::stimulus;
+use crate::stimulus::StimulusSchedule;
+use std::collections::{BTreeMap, HashSet};
 
 /// The strategy used for selecting parents for the next generation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +29,21 @@ pub enum SelectionStrategy {
     /// Select parents using roulette wheel selection.
     RouletteWheel,
 }
+
+/// The strategy used for crossover.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CrossoverStrategy {
+    /// Each stimulus command is chosen from one of the parents at random.
+    Uniform,
+}
+
+/// The strategy used for mutation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MutationStrategy {
+    /// A random mutation is chosen from a predefined set.
+    Random,
+}
+
 
 /// Configuration knobs for the evolution harness.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +58,10 @@ pub struct EvolutionConfig {
     pub crossover_rate: f32,
     /// The selection strategy to use for breeding new candidates.
     pub selection_strategy: SelectionStrategy,
+    /// The crossover strategy to use for breeding new candidates.
+    pub crossover_strategy: CrossoverStrategy,
+    /// The mutation strategy to use for breeding new candidates.
+    pub mutation_strategy: MutationStrategy,
 }
 
 impl EvolutionConfig {
@@ -53,6 +73,8 @@ impl EvolutionConfig {
             retain_elite: true,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         }
     }
 }
@@ -341,6 +363,7 @@ impl AdversarialHarness {
     pub fn run_generations<F>(
         &mut self,
         generations: usize,
+        artifact_root: &Path,
         mut executor: F,
     ) -> Result<Vec<EvaluatedCandidate>, HarnessError>
     where
@@ -413,7 +436,13 @@ impl AdversarialHarness {
                         SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
                     }.map_err(|e| HarnessError::Custom(format!("Selection failed for parent 2: {}", e)))?;
 
-                    perform_crossover(parent1, parent2, &mut rng)
+                    perform_crossover(
+                        parent1,
+                        parent2,
+                        &mut rng,
+                        artifact_root,
+                        &self.config.crossover_strategy,
+                    )?
                 } else {
                     // Perform mutation
                     let parent_outcome = match self.config.selection_strategy {
@@ -429,12 +458,13 @@ impl AdversarialHarness {
                         rng.gen_range(0..1000)
                     );
                     
-                    let mutation = recommend_mutation(&parent_outcome.statistics, parent_outcome.fitness_score, parent_outcome.breach_observed)
-                        .unwrap_or_else(|| {
-                            let topics = ["activator", "inhibitor", "reproducer"];
-                            let topic = topics.choose(&mut rng).unwrap_or(&"activator").to_string();
-                            Mutation::IncreaseStimulus { topic, factor: rng.gen_range(1.1..=1.5) }
-                        });
+                    let mutation = perform_mutation(
+                        &self.config.mutation_strategy,
+                        &parent_outcome.statistics,
+                        parent_outcome.fitness_score,
+                        parent_outcome.breach_observed,
+                        &mut rng,
+                    );
 
                     AttackCandidate {
                         id: new_candidate_id,
@@ -442,7 +472,7 @@ impl AdversarialHarness {
                         stimulus_ref: parent_outcome.candidate.stimulus_ref.clone(),
                         generation: gen_idx as u32 + 1,
                         parent_id: Some(parent_outcome.candidate.id.clone()),
-                        mutation: Some(mutation),
+                        mutation,
                     }
                 };
                 self.enqueue(new_candidate);
@@ -554,7 +584,7 @@ pub fn apply_mutation_and_generate_files(
     if let Some(stimulus_ref) = &candidate.stimulus_ref {
         let original_stimulus_path = PathBuf::from(stimulus_ref);
         let mut stimulus_schedule =
-            stimulus::StimulusSchedule::load(&original_stimulus_path).map_err(|e| {
+            StimulusSchedule::load(&original_stimulus_path).map_err(|e| {
                 HarnessError::Custom(format!(
                     "Failed to load stimulus from {}: {}",
                     original_stimulus_path.display(),
@@ -636,6 +666,42 @@ pub fn roulette_wheel_selection<'a, R: Rng>(
     }
 }
 
+/// Performs a uniform crossover between two stimulus schedules.
+fn uniform_crossover_stimulus<R: Rng>(
+    parent1: &StimulusSchedule,
+    parent2: &StimulusSchedule,
+    rng: &mut R,
+) -> StimulusSchedule {
+    let mut child_commands = BTreeMap::new();
+    let all_steps: HashSet<u32> = parent1
+        .commands
+        .keys()
+        .chain(parent2.commands.keys())
+        .copied()
+        .collect();
+
+    for step in all_steps {
+        let p1_commands = parent1.commands.get(&step);
+        let p2_commands = parent2.commands.get(&step);
+
+        let chosen_commands = match (p1_commands, p2_commands) {
+            (Some(cmds1), Some(cmds2)) => {
+                if rng.gen_bool(0.5) {
+                    cmds1.clone()
+                } else {
+                    cmds2.clone()
+                }
+            }
+            (Some(cmds1), None) => cmds1.clone(),
+            (None, Some(cmds2)) => cmds2.clone(),
+            (None, None) => continue,
+        };
+        child_commands.insert(step, chosen_commands);
+    }
+
+    StimulusSchedule::new(child_commands, None)
+}
+
 /// Performs crossover between two parent outcomes to produce a new child candidate.
 ///
 /// `parent1`: The first parent [`AttackOutcome`].
@@ -647,39 +713,65 @@ pub fn perform_crossover<R: Rng>(
     parent1: &AttackOutcome,
     parent2: &AttackOutcome,
     rng: &mut R,
-) -> AttackCandidate {
-    // Simple crossover: take scenario from parent1 and stimulus from parent2.
-    // A more complex implementation could involve merging scenario/stimulus files content.
+    artifact_root: &Path,
+    crossover_strategy: &CrossoverStrategy,
+) -> Result<AttackCandidate, HarnessError> {
     let child_scenario_ref = parent1.candidate.scenario_ref.clone();
-    let child_stimulus_ref = parent2.candidate.stimulus_ref.clone();
-    let child_generation = std::cmp::max(parent1.candidate.generation, parent2.candidate.generation) + 1;
-    let child_id = format!("crossover-{}-{}-gen{}",
-        parent1.candidate.id,
-        parent2.candidate.id,
-        child_generation
+    let child_generation =
+        std::cmp::max(parent1.candidate.generation, parent2.candidate.generation) + 1;
+    let child_id = format!(
+        "crossover-{}-{}-gen{}",
+        parent1.candidate.id, parent2.candidate.id, child_generation
     );
+
+    let child_stimulus_ref = match (&parent1.candidate.stimulus_ref, &parent2.candidate.stimulus_ref) {
+        (Some(s1), Some(s2)) => {
+            let p1_schedule = StimulusSchedule::load(s1)?;
+            let p2_schedule = StimulusSchedule::load(s2)?;
+
+            let child_schedule = match crossover_strategy {
+                CrossoverStrategy::Uniform => {
+                    uniform_crossover_stimulus(&p1_schedule, &p2_schedule, rng)
+                }
+            };
+
+            let child_stimulus_path = artifact_root
+                .join(format!("gen{:03}", child_generation))
+                .join(&child_id)
+                .join("stimulus.jsonl");
+            fs::create_dir_all(child_stimulus_path.parent().unwrap())?;
+            child_schedule.save_to_path(&child_stimulus_path)?;
+            Some(child_stimulus_path.to_string_lossy().to_string())
+        }
+        (Some(s1), None) => Some(s1.clone()),
+        (None, Some(s2)) => Some(s2.clone()),
+        (None, None) => None,
+    };
 
     // Choose mutation from one of the parents, or create a new one if parents have no mutation
     let mutation = if rng.gen_bool(0.5) {
         parent1.candidate.mutation.clone()
     } else {
         parent2.candidate.mutation.clone()
-    }.or_else(|| {
+    }
+    .or_else(|| {
         // Fallback to a random mutation if both parents have no mutation
         let topics = ["activator", "inhibitor", "reproducer"];
         let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
-        Some(Mutation::IncreaseStimulus { topic, factor: rng.gen_range(1.1..=1.5) })
+        Some(Mutation::IncreaseStimulus {
+            topic,
+            factor: rng.gen_range(1.1..=1.5),
+        })
     });
 
-
-    AttackCandidate {
+    Ok(AttackCandidate {
         id: child_id,
         scenario_ref: child_scenario_ref,
         stimulus_ref: child_stimulus_ref,
         generation: child_generation,
         parent_id: Some(format!("{},{}", parent1.candidate.id, parent2.candidate.id)),
         mutation,
-    }
+    })
 }
 
 
@@ -983,6 +1075,28 @@ fn compute_fitness(stats: &RunStatistics) -> (f32, bool) {
     (fitness, breach_observed)
 }
 
+fn perform_mutation<R: Rng>(
+    mutation_strategy: &MutationStrategy,
+    stats: &RunStatistics,
+    fitness_score: f32,
+    breach_observed: bool,
+    rng: &mut R,
+) -> Option<Mutation> {
+    match mutation_strategy {
+        MutationStrategy::Random => {
+            recommend_mutation(stats, fitness_score, breach_observed).or_else(|| {
+                let topics = ["activator", "inhibitor", "reproducer"];
+                let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
+                Some(Mutation::IncreaseStimulus {
+                    topic,
+                    factor: rng.gen_range(1.1..=1.5),
+                })
+            })
+        }
+    }
+}
+
+
 fn compute_lineage_component(stats: &RunStatistics) -> f32 {
     if stats.step_count == 0 {
         return 0.0;
@@ -1099,10 +1213,12 @@ fn outcome_note_for_analysis(analysis: &HarnessAnalysis) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stimulus::StimulusCommand;
     use serde::Serialize;
     use serde_json::json;
+    use std::collections::BTreeMap;
     use std::io::Cursor;
-    use tempfile::NamedTempFile;
+    use tempfile::{tempdir, NamedTempFile};
 
     #[test]
     fn retain_elite_requeues_elite_candidates() {
@@ -1112,6 +1228,8 @@ mod tests {
             retain_elite: true,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         });
 
         harness.enqueue(AttackCandidate {
@@ -1123,8 +1241,9 @@ mod tests {
             mutation: None,
         });
 
+        let artifact_dir = tempdir().expect("failed to create temp dir");
         let evaluations = harness
-            .run_generations(1, |_candidate| {
+            .run_generations(1, artifact_dir.path(), |_candidate| {
                 // Simulate an elite candidate (high fitness, no mutation recommended)
                 let steps = vec![StepMetrics {
                     step: 1, // Changed step to 1 to influence lineage_pressure calculation
@@ -1161,6 +1280,8 @@ mod tests {
             retain_elite: false,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         });
 
         harness.enqueue(AttackCandidate {
@@ -1277,6 +1398,8 @@ mod tests {
             retain_elite: false,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         });
 
         let temp_csv = NamedTempFile::new().expect("temp file");
@@ -1315,6 +1438,8 @@ mod tests {
             retain_elite: true,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         });
 
         let candidate = AttackCandidate {
@@ -1364,6 +1489,8 @@ mod tests {
             retain_elite: false,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         });
 
         harness.enqueue(AttackCandidate {
@@ -1383,8 +1510,9 @@ mod tests {
             mutation: None,
         });
 
+        let artifact_dir = tempdir().expect("failed to create temp dir");
         let evaluations = harness
-            .run_generations(2, |candidate| {
+            .run_generations(2, artifact_dir.path(), |candidate| {
                 let base_threat = 0.3 + candidate.generation as f32 * 0.1;
                 let steps = vec![StepMetrics {
                     step: candidate.generation,
@@ -1420,6 +1548,8 @@ mod tests {
             retain_elite: false,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         });
 
         let template_stats = RunStatistics {
@@ -1469,6 +1599,8 @@ mod tests {
             retain_elite: false,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         });
 
         let stats = RunStatistics {
@@ -1619,23 +1751,41 @@ mod tests {
 
     #[test]
     fn perform_crossover_creates_child() {
+        let parent1_stimulus_file = NamedTempFile::new().unwrap();
+        let parent2_stimulus_file = NamedTempFile::new().unwrap();
+
+        let parent1_stimulus_path = parent1_stimulus_file.path().to_str().unwrap().to_string();
+        let parent2_stimulus_path = parent2_stimulus_file.path().to_str().unwrap().to_string();
+
         let parent1_outcome = AttackOutcome {
             candidate: AttackCandidate {
                 id: "parent1".to_string(),
                 scenario_ref: "scenario1.yaml".to_string(),
-                stimulus_ref: Some("stimulus1.jsonl".to_string()),
+                stimulus_ref: Some(parent1_stimulus_path),
                 generation: 1,
                 parent_id: None,
-                mutation: Some(Mutation::AddSpike { step: 10, intensity: 0.5 }),
+                mutation: Some(Mutation::AddSpike {
+                    step: 10,
+                    intensity: 0.5,
+                }),
             },
             fitness_score: 0.7,
             breach_observed: true,
             notes: None,
             statistics: RunStatistics {
-                step_count: 1, avg_threat: 0.1, max_threat: 0.2, avg_cell_count: 1.0,
-                min_cell_count: 1, max_cell_count: 1, total_replications: 0, total_signals: 0,
-                total_lineage_shifts: 0, total_stimulus: 0.0, signals_by_topic: HashMap::new(),
-                lineage_by_type: HashMap::new(), stimuli_by_topic: HashMap::new(),
+                step_count: 1,
+                avg_threat: 0.1,
+                max_threat: 0.2,
+                avg_cell_count: 1.0,
+                min_cell_count: 1,
+                max_cell_count: 1,
+                total_replications: 0,
+                total_signals: 0,
+                total_lineage_shifts: 0,
+                total_stimulus: 0.0,
+                signals_by_topic: HashMap::new(),
+                lineage_by_type: HashMap::new(),
+                stimuli_by_topic: HashMap::new(),
             },
         };
 
@@ -1643,30 +1793,110 @@ mod tests {
             candidate: AttackCandidate {
                 id: "parent2".to_string(),
                 scenario_ref: "scenario2.yaml".to_string(),
-                stimulus_ref: Some("stimulus2.jsonl".to_string()),
+                stimulus_ref: Some(parent2_stimulus_path),
                 generation: 2,
                 parent_id: None,
-                mutation: Some(Mutation::IncreaseStimulus { topic: "activator".to_string(), factor: 1.2 }),
+                mutation: Some(Mutation::IncreaseStimulus {
+                    topic: "activator".to_string(),
+                    factor: 1.2,
+                }),
             },
             fitness_score: 0.8,
             breach_observed: true,
             notes: None,
             statistics: RunStatistics {
-                step_count: 1, avg_threat: 0.1, max_threat: 0.2, avg_cell_count: 1.0,
-                min_cell_count: 1, max_cell_count: 1, total_replications: 0, total_signals: 0,
-                total_lineage_shifts: 0, total_stimulus: 0.0, signals_by_topic: HashMap::new(),
-                lineage_by_type: HashMap::new(), stimuli_by_topic: HashMap::new(),
+                step_count: 1,
+                avg_threat: 0.1,
+                max_threat: 0.2,
+                avg_cell_count: 1.0,
+                min_cell_count: 1,
+                max_cell_count: 1,
+                total_replications: 0,
+                total_signals: 0,
+                total_lineage_shifts: 0,
+                total_stimulus: 0.0,
+                signals_by_topic: HashMap::new(),
+                lineage_by_type: HashMap::new(),
+                stimuli_by_topic: HashMap::new(),
             },
         };
 
         let mut rng = rand::thread_rng();
-        let child = perform_crossover(&parent1_outcome, &parent2_outcome, &mut rng);
+        let artifact_dir = tempdir().expect("failed to create temp dir");
+        let child = perform_crossover(
+            &parent1_outcome,
+            &parent2_outcome,
+            &mut rng,
+            artifact_dir.path(),
+            &CrossoverStrategy::Uniform,
+        )
+        .expect("crossover failed");
 
         assert_eq!(child.scenario_ref, "scenario1.yaml");
-        assert_eq!(child.stimulus_ref, Some("stimulus2.jsonl".to_string()));
+        assert!(child.stimulus_ref.is_some());
         assert_eq!(child.generation, 3);
         assert!(child.id.starts_with("crossover-parent1-parent2-gen3"));
         assert!(child.mutation.is_some());
+    }
+
+    #[test]
+    fn test_uniform_crossover_stimulus() {
+        let mut parent1_commands = BTreeMap::new();
+        parent1_commands.insert(
+            0,
+            vec![StimulusCommand {
+                step: 0,
+                topic: "a".to_string(),
+                value: 1.0,
+            }],
+        );
+        let parent1 = StimulusSchedule::new(parent1_commands, None);
+
+        let mut parent2_commands = BTreeMap::new();
+        parent2_commands.insert(
+            0,
+            vec![StimulusCommand {
+                step: 0,
+                topic: "b".to_string(),
+                value: 2.0,
+            }],
+        );
+        let parent2 = StimulusSchedule::new(parent2_commands, None);
+
+        let mut rng = rand::thread_rng();
+        let child = uniform_crossover_stimulus(&parent1, &parent2, &mut rng);
+
+        assert_eq!(child.commands.len(), 1);
+        let child_command = &child.commands.get(&0).unwrap()[0];
+        assert!(child_command.topic == "a" || child_command.topic == "b");
+    }
+
+    #[test]
+    fn test_perform_mutation() {
+        let stats = RunStatistics {
+            step_count: 1,
+            avg_threat: 0.1,
+            max_threat: 0.2,
+            avg_cell_count: 1.0,
+            min_cell_count: 1,
+            max_cell_count: 1,
+            total_replications: 0,
+            total_signals: 0,
+            total_lineage_shifts: 0,
+            total_stimulus: 0.0,
+            signals_by_topic: HashMap::new(),
+            lineage_by_type: HashMap::new(),
+            stimuli_by_topic: HashMap::new(),
+        };
+        let mut rng = rand::thread_rng();
+        let mutation = perform_mutation(
+            &MutationStrategy::Random,
+            &stats,
+            0.5,
+            false,
+            &mut rng,
+        );
+        assert!(mutation.is_some());
     }
 
     #[derive(Serialize)]

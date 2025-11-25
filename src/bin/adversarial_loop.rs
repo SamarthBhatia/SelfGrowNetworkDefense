@@ -56,7 +56,7 @@ fn run() -> Result<(), String> {
     let stimulus_path = args.stimulus_path.clone();
 
     let evaluations = harness
-        .run_generations(args.generations, move |candidate| {
+        .run_generations(args.generations, &artifact_root.clone(), move |candidate| {
             let (mutated_scenario_path, mutated_stimulus_path) =
                 morphogenetic_security::adversarial::apply_mutation_and_generate_files(
                     candidate,
