@@ -324,7 +324,7 @@ s on lineage pressure.
     - Implemented `apply_mutation_and_generate_files` in `src/adversarial.rs` to handle mutation application and file generation for scenario and stimulus files.
     - Added necessary `use` statements and implemented `From<ConfigError> for HarnessError` to ensure proper error handling.
     - Corrected the method call for `StimulusSchedule::save` to `StimulusSchedule::save_to_path`.
-    - Fixed the `retain_elite_requeues_elite_candidates` test by carefully adjusting `StepMetrics` to ensure `recommend_mutation` returns `None` when elite retention is desired, finally passing all tests.
+    - Fixed the `retain_elite_requeues_elite_candidates` test by carefully adjusting `StepMetrics` to ensure `recommend_.mutation` returns `None` when elite retention is desired, finally passing all tests.
     - Verified that all unit tests and binaries compile and pass.
 - **Open Questions**:
     - What new mutation strategies should be implemented beyond simple stimulus changes and spike additions? (Copied from previous session)
@@ -394,3 +394,17 @@ s on lineage pressure.
 - **Next Session Starting Point**:
     - Discuss new mutation and crossover strategies to implement.
     - Refine existing strategies based on analytical insights.
+
+### 2025-11-25 — Session 27
+- **Focus**: Analyze the impact of the new crossover strategy.
+- **Actions**:
+    - Created `scripts/run_crossover_analysis.sh` to run the adversarial loop with and without crossover.
+    - Added `--crossover-rate` argument to the `adversarial_loop` binary.
+    - Updated `lineage_analysis.ipynb` to load and compare the results of the two runs.
+    - Added a new section to the notebook to visualize the comparison of fitness and lineage diversity.
+- **Open Questions**:
+    - What other visualizations would be useful for understanding the evolutionary dynamics?
+    - How can this notebook be integrated into a more automated reporting or CI process?
+- **Next Session Starting Point**:
+    - Discuss the results of the crossover analysis and decide on the next steps for improving the evolution strategies.
+    - Refine and expand the visualizations in `lineage_analysis.ipynb` to provide deeper insights.

@@ -158,9 +158,12 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
         if let Some(retain) = args.retain_elite {
             config.retain_elite = retain;
         }
+        if let Some(rate) = args.crossover_rate {
+            config.crossover_rate = rate;
+        }
         println!(
-            "[info] Initialising new harness with batch_size={} max_generations={} retain_elite={}",
-            config.batch_size, config.max_generations, config.retain_elite
+            "[info] Initialising new harness with batch_size={} max_generations={} retain_elite={} crossover_rate={}",
+            config.batch_size, config.max_generations, config.retain_elite, config.crossover_rate
         );
         Ok(AdversarialHarness::new(config))
     }
@@ -361,6 +364,7 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut retain_elite: Option<bool> = None;
     let mut seeds: Vec<SeedCandidate> = Vec::new();
     let mut stimulus_path: Option<PathBuf> = None;
+    let mut crossover_rate: Option<f32> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -422,6 +426,16 @@ fn parse_args() -> Result<CliArgs, String> {
                     .ok_or_else(|| "Missing value for --stimulus".to_string())?;
                 stimulus_path = Some(PathBuf::from(value));
             }
+            "--crossover-rate" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --crossover-rate".to_string())?;
+                crossover_rate = Some(
+                    value
+                        .parse::<f32>()
+                        .map_err(|_| "Crossover rate must be a float".to_string())?,
+                );
+            }
             unknown => {
                 return Err(format!("Unknown argument `{unknown}`"));
             }
@@ -440,6 +454,7 @@ fn parse_args() -> Result<CliArgs, String> {
         retain_elite,
         seeds,
         stimulus_path,
+        crossover_rate,
     })
 }
 
@@ -456,6 +471,7 @@ Options:
   --no-retain-elite        Disable elite retention (new harness only)
   --seed <id>=<scenario>   Enqueue a seed scenario (can repeat)
   --stimulus <path>        Stimulus schedule JSONL applied to each run
+  --crossover-rate <f32>   The probability of performing crossover (0.0 to 1.0)
   --help                   Show this message"
     );
 }
@@ -469,6 +485,7 @@ struct CliArgs {
     retain_elite: Option<bool>,
     seeds: Vec<SeedCandidate>,
     stimulus_path: Option<PathBuf>,
+    crossover_rate: Option<f32>,
 }
 
 struct SeedCandidate {
