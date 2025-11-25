@@ -1,7 +1,7 @@
 use morphogenetic_security::MorphogeneticApp;
 use morphogenetic_security::adversarial::{
     AdversarialHarness, AttackCandidate, EvolutionConfig, ExecutionReport, HarnessError,
-    StepMetrics,
+    MutationStrategy, StepMetrics,
 };
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
@@ -13,6 +13,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
+use std::str::FromStr;
 
 fn main() {
     if let Err(err) = run() {
@@ -161,9 +162,12 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
         if let Some(rate) = args.crossover_rate {
             config.crossover_rate = rate;
         }
+        if let Some(strategy) = &args.mutation_strategy {
+            config.mutation_strategy = strategy.clone();
+        }
         println!(
-            "[info] Initialising new harness with batch_size={} max_generations={} retain_elite={} crossover_rate={}",
-            config.batch_size, config.max_generations, config.retain_elite, config.crossover_rate
+            "[info] Initialising new harness with batch_size={} max_generations={} retain_elite={} crossover_rate={} mutation_strategy={:?}",
+            config.batch_size, config.max_generations, config.retain_elite, config.crossover_rate, config.mutation_strategy
         );
         Ok(AdversarialHarness::new(config))
     }
@@ -365,6 +369,7 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut seeds: Vec<SeedCandidate> = Vec::new();
     let mut stimulus_path: Option<PathBuf> = None;
     let mut crossover_rate: Option<f32> = None;
+    let mut mutation_strategy: Option<MutationStrategy> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -436,6 +441,15 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Crossover rate must be a float".to_string())?,
                 );
             }
+            "--mutation-strategy" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --mutation-strategy".to_string())?;
+                mutation_strategy = Some(
+                    MutationStrategy::from_str(&value)
+                        .map_err(|_| "Invalid mutation strategy".to_string())?,
+                );
+            }
             unknown => {
                 return Err(format!("Unknown argument `{unknown}`"));
             }
@@ -455,6 +469,7 @@ fn parse_args() -> Result<CliArgs, String> {
         seeds,
         stimulus_path,
         crossover_rate,
+        mutation_strategy,
     })
 }
 
@@ -486,6 +501,7 @@ struct CliArgs {
     seeds: Vec<SeedCandidate>,
     stimulus_path: Option<PathBuf>,
     crossover_rate: Option<f32>,
+    mutation_strategy: Option<MutationStrategy>,
 }
 
 struct SeedCandidate {

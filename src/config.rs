@@ -153,6 +153,16 @@ impl ScenarioConfig {
                 });
                 self.spikes.sort_by_key(|s| s.step);
             }
+            Mutation::ChangeThreatSpike {
+                event_index,
+                new_step,
+                new_intensity,
+            } => {
+                if let Some(spike) = self.spikes.get_mut(*event_index) {
+                    spike.step = *new_step;
+                    spike.intensity = *new_intensity;
+                }
+            }
             _ => {
                 // Other mutations are handled by stimulus or other config fields
             }

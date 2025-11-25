@@ -22,6 +22,7 @@ run_scenario() {
   local telemetry_file="$TARGET_DIR/${label}_telemetry.jsonl"
   local metrics_csv="$TARGET_DIR/${label}_step_metrics.csv"
   local summary_json="$TARGET_DIR/${label}_summary.json"
+  local harness_json="$TARGET_DIR/${label}_outcome.json"
 
   echo "[eval] Running scenario '$label' ($scenario_path)..."
   if [[ "$use_stimulus" == "true" ]]; then
@@ -45,9 +46,25 @@ run_scenario() {
     prepare_args+=(--stimulus "$STIMULUS_FILE")
   fi
   "${prepare_args[@]}"
+
+  echo "[eval] Scoring adversarial pressure for '$label'..."
+  local emit_args=(
+    cargo run --quiet --bin adversarial_cycle --
+    --candidate-id "eval-${label}"
+    --scenario "$scenario_path"
+    --generation 0
+    --metrics "$metrics_csv"
+    --state "$TARGET_DIR/harness_state.json"
+    --emit-json "$harness_json"
+  )
+  if [[ "$use_stimulus" == "true" ]]; then
+    emit_args+=(--stimulus "$STIMULUS_FILE")
+  fi
+  "${emit_args[@]}"
 }
 
 run_scenario "extreme_mutation" "$ROOT_DIR/docs/examples/high_mutation.yaml" "true"
 
 echo "[eval] Evaluation artifacts ready under $TARGET_DIR"
 echo "[eval] To analyze, inspect the 'lineage_pressure' in '$TARGET_DIR/extreme_mutation_summary.json'"
+echo "[eval] You can now run the TUI with: cargo run --bin pitch_tui -- $TARGET_DIR"

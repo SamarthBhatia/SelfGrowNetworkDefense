@@ -26,3 +26,6 @@ jobs:
 
       - name: Attack Simulation Smoke Test
         run: bash scripts/run_attack_simulation.sh
+
+      - name: Evolution Smoke Test
+        run: bash scripts/run_evolution_smoke_test.sh

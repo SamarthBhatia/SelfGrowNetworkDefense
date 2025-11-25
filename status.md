@@ -408,3 +408,20 @@ s on lineage pressure.
 - **Next Session Starting Point**:
     - Discuss the results of the crossover analysis and decide on the next steps for improving the evolution strategies.
     - Refine and expand the visualizations in `lineage_analysis.ipynb` to provide deeper insights.
+
+### 2025-11-25 — Session 28
+- **Focus**: Implement sophisticated mutation strategies.
+- **Actions**:
+    - Added `SwapStimulus`, `RemoveStimulus`, and `ChangeThreatSpike` to the `Mutation` enum in `src/adversarial.rs`.
+    - Updated `apply_mutation` function in `src/stimulus.rs` to handle `SwapStimulus` and `RemoveStimulus` mutations.
+    - Updated `apply_mutation` function in `src/config.rs` to handle `ChangeThreatSpike` mutation.
+    - Updated `perform_mutation` function in `src/adversarial.rs` to include the new mutation types in the random mutation strategy.
+    - Updated `run_generations` function to provide the number of stimulus and threat spike events to `perform_mutation`.
+    - Updated unit tests to reflect the changes.
+    - Verified that all unit tests and binaries compile and pass.
+- **Open Questions**:
+    - What other mutation strategies should be implemented?
+    - How can we best analyze the impact of different mutation strategies?
+- **Next Session Starting Point**:
+    - Discuss the results of the new mutation strategies and decide on the next steps for improving the evolution strategies.
+    - Refine and expand the `lineage_analysis.ipynb` notebook to analyze the impact of different mutation strategies.

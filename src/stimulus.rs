@@ -106,6 +106,40 @@ impl StimulusSchedule {
                 }
                 self.commands = new_commands;
             }
+            Mutation::SwapStimulus { event_index1, event_index2 } => {
+                let mut all_commands: Vec<StimulusCommand> = Vec::new();
+                for (_, commands_at_step) in self.commands.clone().into_iter() {
+                    all_commands.extend(commands_at_step);
+                }
+
+                if *event_index1 < all_commands.len() && *event_index2 < all_commands.len() {
+                    all_commands.swap(*event_index1, *event_index2);
+                }
+
+                // Rebuild the BTreeMap
+                let mut new_commands: BTreeMap<u32, Vec<StimulusCommand>> = BTreeMap::new();
+                for cmd in all_commands {
+                    new_commands.entry(cmd.step).or_default().push(cmd);
+                }
+                self.commands = new_commands;
+            }
+            Mutation::RemoveStimulus { event_index } => {
+                let mut all_commands: Vec<StimulusCommand> = Vec::new();
+                for (_, commands_at_step) in self.commands.clone().into_iter() {
+                    all_commands.extend(commands_at_step);
+                }
+
+                if *event_index < all_commands.len() {
+                    all_commands.remove(*event_index);
+                }
+
+                // Rebuild the BTreeMap
+                let mut new_commands: BTreeMap<u32, Vec<StimulusCommand>> = BTreeMap::new();
+                for cmd in all_commands {
+                    new_commands.entry(cmd.step).or_default().push(cmd);
+                }
+                self.commands = new_commands;
+            }
             _ => {
                 // Other mutations are handled by config or other types
             }

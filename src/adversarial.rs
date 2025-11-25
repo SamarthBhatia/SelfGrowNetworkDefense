@@ -37,11 +37,24 @@ pub enum CrossoverStrategy {
     Uniform,
 }
 
+use std::str::FromStr;
+
 /// The strategy used for mutation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MutationStrategy {
     /// A random mutation is chosen from a predefined set.
     Random,
+}
+
+impl FromStr for MutationStrategy {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Random" => Ok(MutationStrategy::Random),
+            _ => Err(()),
+        }
+    }
 }
 
 
@@ -86,6 +99,9 @@ pub enum Mutation {
     DecreaseStimulus { topic: String, factor: f32 },
     AddSpike { step: u32, intensity: f32 },
     ChangeEventTiming { event_index: usize, new_step: u32 },
+    SwapStimulus { event_index1: usize, event_index2: usize },
+    RemoveStimulus { event_index: usize },
+    ChangeThreatSpike { event_index: usize, new_step: u32, new_intensity: f32 },
 }
 
 /// Description of an attack scenario candidate scheduled for execution.
@@ -458,12 +474,26 @@ impl AdversarialHarness {
                         rng.gen_range(0..1000)
                     );
                     
+                    let scenario_config =
+                        config::load_from_path(&parent_outcome.candidate.scenario_ref)?;
+                    let num_threat_spikes = scenario_config.spikes.len();
+
+                    let num_stimulus_events =
+                        if let Some(stimulus_ref) = &parent_outcome.candidate.stimulus_ref {
+                            let stimulus_schedule = StimulusSchedule::load(stimulus_ref)?;
+                            stimulus_schedule.commands.values().flatten().count()
+                        } else {
+                            0
+                        };
+
                     let mutation = perform_mutation(
                         &self.config.mutation_strategy,
                         &parent_outcome.statistics,
                         parent_outcome.fitness_score,
                         parent_outcome.breach_observed,
                         &mut rng,
+                        num_stimulus_events,
+                        num_threat_spikes,
                     );
 
                     AttackCandidate {
@@ -1081,17 +1111,54 @@ fn perform_mutation<R: Rng>(
     fitness_score: f32,
     breach_observed: bool,
     rng: &mut R,
+    num_stimulus_events: usize,
+    num_threat_spikes: usize,
 ) -> Option<Mutation> {
     match mutation_strategy {
         MutationStrategy::Random => {
-            recommend_mutation(stats, fitness_score, breach_observed).or_else(|| {
-                let topics = ["activator", "inhibitor", "reproducer"];
-                let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
-                Some(Mutation::IncreaseStimulus {
-                    topic,
-                    factor: rng.gen_range(1.1..=1.5),
-                })
-            })
+            let mut mutations = Vec::new();
+
+            if let Some(mutation) = recommend_mutation(stats, fitness_score, breach_observed) {
+                mutations.push(mutation);
+            }
+
+            let topics = ["activator", "inhibitor", "reproducer"];
+            let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
+            mutations.push(Mutation::IncreaseStimulus {
+                topic: topic.clone(),
+                factor: rng.gen_range(1.1..=1.5),
+            });
+            mutations.push(Mutation::DecreaseStimulus {
+                topic,
+                factor: rng.gen_range(1.1..=1.5),
+            });
+
+            if stats.step_count > 0 {
+                mutations.push(Mutation::AddSpike {
+                    step: rng.gen_range(0..stats.step_count) as u32,
+                    intensity: rng.gen_range(0.1..=1.0),
+                });
+            }
+
+            if num_stimulus_events > 1 {
+                mutations.push(Mutation::SwapStimulus {
+                    event_index1: rng.gen_range(0..num_stimulus_events),
+                    event_index2: rng.gen_range(0..num_stimulus_events),
+                });
+                mutations.push(Mutation::RemoveStimulus {
+                    event_index: rng.gen_range(0..num_stimulus_events),
+                });
+            }
+
+            if num_threat_spikes > 0 {
+                mutations.push(Mutation::ChangeThreatSpike {
+                    event_index: rng.gen_range(0..num_threat_spikes),
+                    new_step: rng.gen_range(0..stats.step_count) as u32,
+                    new_intensity: rng.gen_range(0.1..=1.0),
+                });
+            }
+
+            mutations.choose(rng).cloned()
         }
     }
 }
@@ -1895,6 +1962,8 @@ mod tests {
             0.5,
             false,
             &mut rng,
+            0,
+            0,
         );
         assert!(mutation.is_some());
     }
