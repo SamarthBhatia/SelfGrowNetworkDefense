@@ -17,7 +17,7 @@ cellular base, then prove pattern formation in adversarial tests.
 3. **Swarm Immune Response (≈1.5 months)**: Deliver distributed anomaly detection, coordinated quarantine, and immunological memory with TPM-backed att
 estation.                                                                                                                                              
 4. **Controlled Evolution Validation (≈0.5 months)**: Evolve attack suites, collect metrics, and showcase adaptive defense growth on the physical IoT t
-estbed.                                                                                                                                                
+testbed.                                                                                                                                                
                                                                                                                                                        
 ## Current State (2025-10-30 UTC)                                                                                                                      
 ### Completed                                                                                                                                          
@@ -348,3 +348,17 @@ s on lineage pressure.
 - **Next Session Starting Point**:
     - Develop advanced analytics and visualizations (e.g., Jupyter notebooks) to analyze the performance of the enhanced evolutionary harness, including the effects of crossover and different selection strategies.
     - Refine and expand mutation and crossover strategies based on insights from the new analytics.
+
+### 2025-11-25 — Session 24
+- **Focus**: Develop advanced analytics and visualizations for the adversarial harness.
+- **Actions**:
+    - Created a new Jupyter notebook `scripts/lineage_analysis.ipynb`.
+    - Implemented Python code in the notebook to load and aggregate run summary data from the `pitch_demo.sh` output.
+    - Created visualizations for comparing fitness and lineage pressure between scenarios, and for tracking lineage population changes over time.
+    - Corrected the data loading logic in the notebook to align with the actual file structure produced by `pitch_demo.sh`.
+- **Open Questions**:
+    - What other visualizations would be useful for understanding the evolutionary dynamics?
+    - How can this notebook be integrated into a more automated reporting or CI process?
+- **Next Session Starting Point**:
+    - Refine and expand the visualizations in `lineage_analysis.ipynb` to provide deeper insights.
+    - Begin implementing more sophisticated mutation and crossover strategies based on the analysis from the notebook.
