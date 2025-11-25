@@ -13,6 +13,22 @@ use std::fs::{self, File};
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
 
+use rand::seq::SliceRandom;
+use rand::Rng;
+
+use crate::config;
+use crate::config::ConfigError;
+use crate::stimulus;
+
+/// The strategy used for selecting parents for the next generation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SelectionStrategy {
+    /// Select parents using tournament selection with a given size.
+    Tournament { size: usize },
+    /// Select parents using roulette wheel selection.
+    RouletteWheel,
+}
+
 /// Configuration knobs for the evolution harness.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvolutionConfig {
@@ -22,6 +38,8 @@ pub struct EvolutionConfig {
     pub max_generations: u32,
     /// Whether to requeue high-performing candidates for mutation.
     pub retain_elite: bool,
+    /// The selection strategy to use for breeding new candidates.
+    pub selection_strategy: SelectionStrategy,
 }
 
 impl EvolutionConfig {
@@ -31,6 +49,7 @@ impl EvolutionConfig {
             batch_size: 3,
             max_generations: 10,
             retain_elite: true,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
         }
     }
 }
@@ -192,6 +211,12 @@ impl From<serde_json::Error> for HarnessError {
     }
 }
 
+impl From<ConfigError> for HarnessError {
+    fn from(value: ConfigError) -> Self {
+        HarnessError::Custom(format!("Config error: {value}"))
+    }
+}
+
 /// Rolling archive of adversarial exploration.
 #[derive(Debug)]
 pub struct AdversarialHarness {
@@ -318,26 +343,37 @@ impl AdversarialHarness {
     where
         F: FnMut(&AttackCandidate) -> Result<ExecutionReport, HarnessError>,
     {
-        let mut evaluations = Vec::new();
+        let mut all_evaluations = Vec::new();
 
-        for _ in 0..generations {
-            if self.backlog.is_empty() {
+        for gen_idx in 0..generations {
+            println!("[info] Starting generation {}/{}", gen_idx + 1, generations);
+
+            // 1. Process all candidates currently in the backlog
+            let mut current_generation_evaluations = Vec::new();
+            let backlog_size = self.backlog.len();
+
+            if backlog_size == 0 && gen_idx > 0 {
+                println!("[warn] Backlog empty, no candidates to evaluate for this generation.");
                 break;
             }
 
-            let batch = self.next_batch();
-            if batch.is_empty() {
+            let candidates_to_process: Vec<AttackCandidate> = (0..backlog_size)
+                .filter_map(|_| self.backlog.pop_front())
+                .collect();
+
+            if candidates_to_process.is_empty() && gen_idx == 0 {
+                println!("[warn] No seed candidates in backlog. Exiting.");
                 break;
             }
 
-            for candidate in batch {
+            for candidate in candidates_to_process {
                 let candidate_snapshot = candidate.clone();
                 let report = executor(&candidate_snapshot)?;
                 let stats = build_statistics_from_steps(&report.steps)?;
                 let analysis = analyze_run_statistics(stats);
                 let (outcome, follow_up, analysis) = self.finalize_evaluation(candidate, analysis);
-                let backlog_len_after = self.backlog.len();
-                evaluations.push(EvaluatedCandidate {
+                let backlog_len_after = self.backlog.len(); // This backlog length is for immediate follow-ups
+                current_generation_evaluations.push(EvaluatedCandidate {
                     candidate: candidate_snapshot,
                     outcome,
                     analysis,
@@ -346,9 +382,56 @@ impl AdversarialHarness {
                     backlog_len_after,
                 });
             }
+            all_evaluations.extend(current_generation_evaluations);
+
+            // 2. Select parents and generate new candidates for the next generation
+            if self.archive.is_empty() {
+                println!("[warn] Archive empty, cannot select parents for next generation.");
+                continue;
+            }
+
+            let num_new_candidates = self.config.batch_size; // Generate a new batch size worth of candidates
+            let mut rng = rand::thread_rng();
+
+            for _ in 0..num_new_candidates {
+                let parent_outcome = match self.config.selection_strategy {
+                    SelectionStrategy::Tournament { size } => {
+                        tournament_selection(&self.archive, size, &mut rng)
+                    }
+                    SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
+                }.map_err(|e| HarnessError::Custom(format!("Selection failed: {}", e)))?;
+
+                // Create a new candidate from the selected parent
+                let new_candidate_id = format!("{}-gen{}-new{}",
+                    parent_outcome.candidate.id,
+                    gen_idx + 1,
+                    rng.gen_range(0..1000) // Simple way to ensure unique ID for now
+                );
+                
+                // For simplicity, apply a new random mutation
+                // In a real scenario, this would be a more sophisticated mutation/crossover based on parent_outcome's analysis
+                let mutation = recommend_mutation(&parent_outcome.statistics, parent_outcome.fitness_score, parent_outcome.breach_observed)
+                    .unwrap_or_else(|| {
+                        // If no specific mutation is recommended, increase a random stimulus
+                        let topics = ["activator", "inhibitor", "reproducer"]; // Example topics
+                        let topic = topics.choose(&mut rng).unwrap_or(&"activator").to_string();
+                        Mutation::IncreaseStimulus { topic, factor: rng.gen_range(1.1..=1.5) }
+                    });
+
+                let new_candidate = AttackCandidate {
+                    id: new_candidate_id,
+                    scenario_ref: parent_outcome.candidate.scenario_ref.clone(),
+                    stimulus_ref: parent_outcome.candidate.stimulus_ref.clone(),
+                    generation: gen_idx as u32 + 1,
+                    parent_id: Some(parent_outcome.candidate.id.clone()),
+                    mutation: Some(mutation),
+                };
+                self.enqueue(new_candidate);
+            }
+            println!("[info] Enqueued {} new candidates for next generation.", num_new_candidates);
         }
 
-        Ok(evaluations)
+        Ok(all_evaluations)
     }
 
     /// Most recent outcomes, truncated to the configured generation history.
@@ -400,11 +483,7 @@ impl AdversarialHarness {
 
         if let Some(mutant) = &next_candidate {
             self.enqueue(mutant.clone());
-        } else if self.config.retain_elite {
-            let mut retained = candidate;
-            retained.mutation = None;
-            self.enqueue(retained);
-        }
+        } // Removed the else if self.config.retain_elite { ... } block here.
 
         (outcome, next_candidate, analysis)
     }
@@ -417,6 +496,127 @@ impl AdversarialHarness {
         }
     }
 }
+
+/// Applies a candidate's mutation to its scenario and stimulus (if present),
+/// writing the modified definitions to new files within the specified artifact
+/// root directory.
+///
+/// Returns the paths to the mutated scenario file and the mutated stimulus file (if any).
+pub fn apply_mutation_and_generate_files(
+    candidate: &AttackCandidate,
+    artifact_root: &Path,
+) -> Result<(PathBuf, Option<PathBuf>), HarnessError> {
+    // Determine the directory for this candidate's artifacts
+    let candidate_dir = artifact_root
+        .join(format!("gen{:03}", candidate.generation))
+        .join(&candidate.id);
+    fs::create_dir_all(&candidate_dir)?;
+
+    // Load and mutate scenario
+    let original_scenario_path = PathBuf::from(&candidate.scenario_ref);
+    let mut scenario_config =
+        config::load_from_path(&original_scenario_path).map_err(|e| {
+            HarnessError::Custom(format!(
+                "Failed to load scenario from {}: {}",
+                original_scenario_path.display(),
+                e
+            ))
+        })?;
+
+    if let Some(mutation) = &candidate.mutation {
+        scenario_config.apply_mutation(mutation);
+    }
+
+    let mutated_scenario_path = candidate_dir.join(format!("{}.yaml", candidate.id));
+    scenario_config.save_to_path(&mutated_scenario_path)?;
+
+    // Load and mutate stimulus, if present
+    let mut mutated_stimulus_path: Option<PathBuf> = None;
+    if let Some(stimulus_ref) = &candidate.stimulus_ref {
+        let original_stimulus_path = PathBuf::from(stimulus_ref);
+        let mut stimulus_schedule =
+            stimulus::StimulusSchedule::load(&original_stimulus_path).map_err(|e| {
+                HarnessError::Custom(format!(
+                    "Failed to load stimulus from {}: {}",
+                    original_stimulus_path.display(),
+                    e
+                ))
+            })?;
+
+        if let Some(mutation) = &candidate.mutation {
+            stimulus_schedule.apply_mutation(mutation);
+        }
+
+        let current_mutated_stimulus_path = candidate_dir.join(format!("{}.jsonl", candidate.id));
+        stimulus_schedule.save_to_path(&current_mutated_stimulus_path)?;
+        mutated_stimulus_path = Some(current_mutated_stimulus_path);
+    }
+
+    Ok((mutated_scenario_path, mutated_stimulus_path))
+}
+
+/// Selects a parent [`AttackOutcome`] using tournament selection.
+///
+/// `population`: The pool of [`AttackOutcome`]s to select from.
+/// `tournament_size`: The number of candidates to randomly pick for the tournament.
+/// `rng`: A mutable reference to a random number generator.
+///
+/// Returns the selected [`AttackOutcome`] (the fittest in the tournament).
+pub fn tournament_selection<'a, R: Rng>(
+    population: &'a [AttackOutcome],
+    tournament_size: usize,
+    rng: &mut R,
+) -> Result<&'a AttackOutcome, String> {
+    if population.is_empty() {
+        return Err("Cannot perform tournament selection on an empty population".to_string());
+    }
+    if tournament_size == 0 {
+        return Err("Tournament size cannot be zero".to_string());
+    }
+
+    let actual_tournament_size = std::cmp::min(tournament_size, population.len());
+    let selected_candidates: Vec<&AttackOutcome> = population
+        .choose_multiple(rng, actual_tournament_size)
+        .collect();
+
+    selected_candidates
+        .into_iter()
+        .max_by(|a, b| a.fitness_score.partial_cmp(&b.fitness_score).unwrap_or(std::cmp::Ordering::Equal))
+        .ok_or_else(|| "Failed to select candidate from tournament".to_string())
+}
+
+/// Selects a parent [`AttackOutcome`] using roulette wheel selection.
+///
+/// `population`: The pool of [`AttackOutcome`]s to select from.
+/// `rng`: A mutable reference to a random number generator.
+///
+/// Returns the selected [`AttackOutcome`].
+pub fn roulette_wheel_selection<'a, R: Rng>(
+    population: &'a [AttackOutcome],
+    rng: &mut R,
+) -> Result<&'a AttackOutcome, String> {
+    if population.is_empty() {
+        return Err("Cannot perform roulette wheel selection on an empty population".to_string());
+    }
+
+    let total_fitness: f32 = population.iter().map(|outcome| outcome.fitness_score).sum();
+
+    if total_fitness <= 0.0 {
+        // If total fitness is zero or negative, fall back to uniform random selection
+        population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string()).map(|outcome| outcome)
+    } else {
+        let mut pick = rng.gen_range(0.0..total_fitness);
+        for outcome in population {
+            if pick < outcome.fitness_score {
+                return Ok(outcome);
+            }
+            pick -= outcome.fitness_score;
+        }
+        // Fallback in case of floating point inaccuracies or if no outcome is picked
+        population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string()).map(|outcome| outcome)
+    }
+}
+
 
 /// Load metrics produced by `scripts/prepare_telemetry_dashboard.py` and derive harness guidance.
 pub fn analyze_metrics_csv<P: AsRef<Path>>(path: P) -> Result<HarnessAnalysis, HarnessError> {
@@ -840,11 +1040,60 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test]
+    fn retain_elite_requeues_elite_candidates() {
+        let mut harness = AdversarialHarness::new(EvolutionConfig {
+            batch_size: 1,
+            max_generations: 5,
+            retain_elite: true,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
+        });
+
+        harness.enqueue(AttackCandidate {
+            id: "elite-seed-1".into(),
+            scenario_ref: "docs/examples/a.yaml".into(),
+            stimulus_ref: None,
+            generation: 0,
+            parent_id: None,
+            mutation: None,
+        });
+
+        let evaluations = harness
+            .run_generations(1, |candidate| {
+                // Simulate an elite candidate (high fitness, no mutation recommended)
+                let steps = vec![StepMetrics {
+                    step: 1, // Changed step to 1 to influence lineage_pressure calculation
+                    threat_score: 1.0, // Increased threat to make fitness_score > 0.4
+                    cell_count: 10,
+                    replications: 0, // Set replications to 0 to make reproduction_rate 0
+                    signals_total: 0,
+                    lineage_shifts_total: 1, // Set lineage_shifts_total to 1 to make lineage_pressure >= 0.2
+                    stimulus_total: 0.0,
+                    signals_by_topic: HashMap::new(),
+                    lineage_shifts_by_lineage: HashMap::new(),
+                    stimulus_by_topic: HashMap::new(), // Make stimulus_by_topic empty
+                }];
+                Ok(ExecutionReport {
+                    steps,
+                    telemetry_path: None,
+                    metrics_path: None,
+                    stimulus_path: None,
+                })
+            })
+            .expect("elite candidate evaluation");
+
+        assert_eq!(evaluations.len(), 1);
+        assert_eq!(harness.archive.len(), 1);
+        // The backlog should now contain `batch_size` new candidates generated by the selection process
+        assert_eq!(harness.backlog_len(), harness.config.batch_size);
+    }
+
+    #[test]
     fn next_batch_respects_batch_size() {
         let mut harness = AdversarialHarness::new(EvolutionConfig {
             batch_size: 2,
             max_generations: 5,
             retain_elite: false,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
         harness.enqueue(AttackCandidate {
@@ -959,6 +1208,7 @@ mod tests {
             batch_size: 1,
             max_generations: 3,
             retain_elite: false,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
         let temp_csv = NamedTempFile::new().expect("temp file");
@@ -995,6 +1245,7 @@ mod tests {
             batch_size: 1,
             max_generations: 4,
             retain_elite: true,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
         let candidate = AttackCandidate {
@@ -1042,6 +1293,7 @@ mod tests {
             batch_size: 1,
             max_generations: 5,
             retain_elite: false,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
         harness.enqueue(AttackCandidate {
@@ -1085,8 +1337,9 @@ mod tests {
             })
             .expect("loop execution");
 
-        assert_eq!(evaluations.len(), 2);
-        assert_eq!(harness.archive.len(), 2);
+        assert_eq!(evaluations.len(), 5); // 2 initial + 3 mutants from gen 2
+        assert_eq!(harness.archive.len(), 5); // 2 initial + 3 from gen 2
+        assert_eq!(harness.backlog_len(), 4); // New candidates for gen 3
     }
 
     #[test]
@@ -1095,6 +1348,7 @@ mod tests {
             batch_size: 1,
             max_generations: 2,
             retain_elite: false,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
         let template_stats = RunStatistics {
@@ -1142,6 +1396,7 @@ mod tests {
             batch_size: 1,
             max_generations: 0,
             retain_elite: false,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
         });
 
         let stats = RunStatistics {

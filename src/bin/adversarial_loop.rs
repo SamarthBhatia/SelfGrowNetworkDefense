@@ -5,9 +5,9 @@ use morphogenetic_security::adversarial::{
 };
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
-use morphogenetic_security::signaling::Signal;
 use morphogenetic_security::stimulus::StimulusSchedule;
-use morphogenetic_security::telemetry::TelemetryPipeline;
+use morphogenetic_security::telemetry::{TelemetryPipeline, TelemetryEvent};
+use morphogenetic_security::signaling::Signal; // Import Signal
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -57,7 +57,17 @@ fn run() -> Result<(), String> {
 
     let evaluations = harness
         .run_generations(args.generations, move |candidate| {
-            simulate_candidate(candidate, &artifact_root, stimulus_path.as_deref())
+            let (mutated_scenario_path, mutated_stimulus_path) =
+                morphogenetic_security::adversarial::apply_mutation_and_generate_files(
+                    candidate,
+                    &artifact_root,
+                )?;
+
+            let mut mutated_candidate = candidate.clone();
+            mutated_candidate.scenario_ref = mutated_scenario_path.to_string_lossy().to_string();
+            mutated_candidate.stimulus_ref = mutated_stimulus_path.map(|p| p.to_string_lossy().to_string());
+
+            simulate_candidate(&mutated_candidate, &artifact_root, stimulus_path.as_deref())
         })
         .map_err(|err| format!("Harness execution failed: {err}"))?;
 
@@ -165,7 +175,7 @@ fn persist_harness(harness: &AdversarialHarness, path: &Path) -> Result<(), Stri
 fn simulate_candidate(
     candidate: &AttackCandidate,
     artifact_root: &Path,
-    default_stimulus: Option<&Path>,
+    _default_stimulus: Option<&Path>,
 ) -> Result<ExecutionReport, HarnessError> {
     let run_dir = artifact_root
         .join(format!("gen{:03}", candidate.generation))
@@ -175,60 +185,63 @@ fn simulate_candidate(
     let telemetry_path = run_dir.join("telemetry.jsonl");
     let metrics_path = run_dir.join("step_metrics.csv");
 
-    let candidate_stimulus = candidate.stimulus_ref.as_ref().map(PathBuf::from);
-    let applied_stimulus =
-        candidate_stimulus.or_else(|| default_stimulus.map(|path| path.to_path_buf()));
-
-    let (mut schedule, persisted_stimulus) = if let Some(path) = applied_stimulus {
-        if !path.exists() {
-            return Err(HarnessError::Custom(format!(
-                "Stimulus schedule `{}` not found",
-                path.display()
-            )));
-        }
-        let destination = run_dir.join("stimulus.jsonl");
-        fs::copy(&path, &destination)?;
-        (
-            Some(StimulusSchedule::load(&path).map_err(HarnessError::Io)?),
-            Some(destination),
-        )
-    } else {
-        (None, None)
-    };
-
-    let scenario_path = PathBuf::from(&candidate.scenario_ref);
-    let config = config::load_from_path(&scenario_path).map_err(|err| {
+    let mut scenario_config = config::load_from_path(&PathBuf::from(&candidate.scenario_ref)).map_err(|err| {
         HarnessError::Custom(format!(
             "Failed to load scenario `{}`: {err}",
             candidate.scenario_ref
         ))
     })?;
 
+    let mut stimulus_schedule: Option<StimulusSchedule> = None;
+    let mut persisted_stimulus: Option<PathBuf> = None;
+
+    if let Some(path) = &candidate.stimulus_ref {
+        let stimulus_source_path = PathBuf::from(path);
+        if !stimulus_source_path.exists() {
+            return Err(HarnessError::Custom(format!(
+                "Stimulus schedule `{}` not found",
+                stimulus_source_path.display()
+            )));
+        }
+        let destination = run_dir.join("stimulus.jsonl");
+        fs::copy(&stimulus_source_path, &destination)?;
+        persisted_stimulus = Some(destination);
+        stimulus_schedule = Some(StimulusSchedule::load(&stimulus_source_path).map_err(HarnessError::Io)?);
+    }
+
+
+    if let Some(mutation) = &candidate.mutation {
+        scenario_config.apply_mutation(mutation);
+        if let Some(s) = &mut stimulus_schedule {
+            s.apply_mutation(mutation);
+        }
+    }
+
     let telemetry = TelemetryPipeline::with_file(&telemetry_path).map_err(HarnessError::Io)?;
 
-    let cell_count = std::cmp::max(1, config.initial_cell_count);
+    let cell_count = std::cmp::max(1, scenario_config.initial_cell_count);
     let mut cells = Vec::with_capacity(cell_count);
     for idx in 0..cell_count {
         let mut cell = SecurityCell::new(format!("seed-{idx}"));
-        cell.reproduction_threshold = config.threat_profile.spike_threshold;
+        cell.reproduction_threshold = scenario_config.threat_profile.spike_threshold;
         cells.push(cell);
     }
 
     let mut app = MorphogeneticApp::new(cells, telemetry);
-    let steps = std::cmp::max(1, config.simulation_steps);
+    let steps = std::cmp::max(1, scenario_config.simulation_steps);
     let mut per_step: Vec<StepMetrics> = Vec::with_capacity(steps as usize);
     let mut stimulus_ledger: HashMap<u32, HashMap<String, f32>> = HashMap::new();
 
     for step in 0..steps {
-        let threat = config.threat_level_for_step(step);
-        if threat >= config.threat_profile.spike_threshold {
+        let threat = scenario_config.threat_level_for_step(step);
+        if threat >= scenario_config.threat_profile.spike_threshold {
             app.inject_signal(Signal {
                 topic: "activator".to_string(),
                 value: threat,
             });
         }
 
-        if let Some(schedule) = schedule.as_mut() {
+        if let Some(schedule) = stimulus_schedule.as_mut() {
             let commands = schedule.take_for_step(step);
             if !commands.is_empty() {
                 let entry = stimulus_ledger.entry(step).or_default();
@@ -255,20 +268,20 @@ fn simulate_candidate(
 
         for snapshot in new_events {
             match &snapshot.event {
-                morphogenetic_security::telemetry::TelemetryEvent::CellReplicated { .. } => {
+                TelemetryEvent::CellReplicated { .. } => {
                     replications += 1;
                 }
-                morphogenetic_security::telemetry::TelemetryEvent::SignalEmitted {
+                TelemetryEvent::SignalEmitted {
                     topic, ..
                 } => {
                     *signals_by_topic.entry(topic.clone()).or_insert(0) += 1;
                 }
-                morphogenetic_security::telemetry::TelemetryEvent::LineageShift {
+                TelemetryEvent::LineageShift {
                     lineage, ..
                 } => {
                     *lineage_by_lineage.entry(lineage.clone()).or_insert(0) += 1;
                 }
-                morphogenetic_security::telemetry::TelemetryEvent::StepSummary {
+                TelemetryEvent::StepSummary {
                     threat_score,
                     cell_count,
                     ..
@@ -276,7 +289,7 @@ fn simulate_candidate(
                     summary_threat = Some(*threat_score);
                     summary_cells = Some(*cell_count as u32);
                 }
-                morphogenetic_security::telemetry::TelemetryEvent::Scenario { .. } => {}
+                TelemetryEvent::Scenario { .. } => {}
             }
         }
 

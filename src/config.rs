@@ -1,12 +1,12 @@
 //! Scenario configuration and loading utilities.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ScenarioConfig {
     #[serde(default = "default_scenario_name")]
     pub scenario_name: String,
@@ -20,7 +20,7 @@ pub struct ScenarioConfig {
     pub spikes: Vec<ThreatSpike>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ThreatProfile {
     #[serde(default = "default_background_threat")]
     pub background_threat: f32,
@@ -69,7 +69,7 @@ fn default_spike_threshold() -> f32 {
     0.8
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ThreatSpike {
     pub step: u32,
     pub intensity: f32,
@@ -125,6 +125,13 @@ pub fn load_from_reader<R: Read>(mut reader: R) -> Result<ScenarioConfig, Config
 
 impl ScenarioConfig {
     #[allow(dead_code)]
+    pub fn save_to_path<P: AsRef<Path>>(&self, path: P) -> Result<(), ConfigError> {
+        let file = File::create(path)?;
+        serde_yaml::to_writer(file, self)?;
+        Ok(())
+    }
+
+    #[allow(dead_code)]
     pub fn threat_level_for_step(&self, step: u32) -> f32 {
         let mut threat = self.threat_profile.background_threat;
         for spike in &self.spikes {
@@ -133,6 +140,23 @@ impl ScenarioConfig {
             }
         }
         threat.max(0.0)
+    }
+
+    #[allow(dead_code)]
+    pub fn apply_mutation(&mut self, mutation: &crate::adversarial::Mutation) {
+        use crate::adversarial::Mutation;
+        match mutation {
+            Mutation::AddSpike { step, intensity } => {
+                self.spikes.push(ThreatSpike {
+                    step: *step,
+                    intensity: *intensity,
+                });
+                self.spikes.sort_by_key(|s| s.step);
+            }
+            _ => {
+                // Other mutations are handled by stimulus or other config fields
+            }
+        }
     }
 }
 

@@ -43,6 +43,18 @@ impl StimulusSchedule {
     }
 
     #[allow(dead_code)]
+    pub fn save_to_path<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+        let mut file = OpenOptions::new().create(true).write(true).truncate(true).open(path)?;
+        for (_, commands_at_step) in &self.commands {
+            for command in commands_at_step {
+                serde_json::to_writer(&mut file, command)?;
+                file.write_all(b"\n")?;
+            }
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)]
     pub fn take_for_step(&mut self, step: u32) -> Vec<StimulusCommand> {
         self.commands.remove(&step).unwrap_or_default()
     }
@@ -50,6 +62,51 @@ impl StimulusSchedule {
     #[allow(dead_code)]
     pub fn source(&self) -> Option<&Path> {
         self.source.as_deref()
+    }
+
+    #[allow(dead_code)]
+    pub fn apply_mutation(&mut self, mutation: &crate::adversarial::Mutation) {
+        use crate::adversarial::Mutation;
+        match mutation {
+            Mutation::IncreaseStimulus { topic, factor } => {
+                for (_, commands_at_step) in self.commands.iter_mut() {
+                    for cmd in commands_at_step.iter_mut() {
+                        if cmd.topic == *topic {
+                            cmd.value *= factor;
+                        }
+                    }
+                }
+            }
+            Mutation::DecreaseStimulus { topic, factor } => {
+                for (_, commands_at_step) in self.commands.iter_mut() {
+                    for cmd in commands_at_step.iter_mut() {
+                        if cmd.topic == *topic {
+                            cmd.value /= factor;
+                        }
+                    }
+                }
+            }
+            Mutation::ChangeEventTiming { event_index, new_step } => {
+                let mut all_commands: Vec<StimulusCommand> = Vec::new();
+                for (_, commands_at_step) in self.commands.clone().into_iter() { // Use into_iter to consume and move
+                    all_commands.extend(commands_at_step);
+                }
+
+                if let Some(cmd) = all_commands.get_mut(*event_index) {
+                    cmd.step = *new_step;
+                }
+                
+                // Rebuild the BTreeMap
+                let mut new_commands: BTreeMap<u32, Vec<StimulusCommand>> = BTreeMap::new();
+                for cmd in all_commands {
+                    new_commands.entry(cmd.step).or_default().push(cmd);
+                }
+                self.commands = new_commands;
+            }
+            _ => {
+                // Other mutations are handled by config or other types
+            }
+        }
     }
 }
 
