@@ -1124,7 +1124,7 @@ mod tests {
         });
 
         let evaluations = harness
-            .run_generations(1, |candidate| {
+            .run_generations(1, |_candidate| {
                 // Simulate an elite candidate (high fitness, no mutation recommended)
                 let steps = vec![StepMetrics {
                     step: 1, // Changed step to 1 to influence lineage_pressure calculation

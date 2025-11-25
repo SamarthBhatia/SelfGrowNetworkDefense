@@ -362,3 +362,14 @@ s on lineage pressure.
 - **Next Session Starting Point**:
     - Refine and expand the visualizations in `lineage_analysis.ipynb` to provide deeper insights.
     - Begin implementing more sophisticated mutation and crossover strategies based on the analysis from the notebook.
+
+### 2025-11-25 — Session 25
+- **Focus**: Verify integration of selection mechanisms and codebase cleanup.
+- **Actions**:
+    - Confirmed that selection mechanisms (`tournament_selection`, `roulette_wheel_selection`) and crossover are already integrated into the `run_generations` function in `src/adversarial.rs`.
+    - Fixed a compiler warning for an unused variable in a test in `src/adversarial.rs`.
+    - Verified that all tests pass by running `cargo test`.
+- **Open Questions**:
+    - The original task is complete. What is the next priority?
+- **Next Session Starting Point**:
+    - Await user feedback on the next steps.
