@@ -140,38 +140,50 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
                 )
             })
             .map(|harness| {
-                if args.batch_size.is_some()
-                    || args.max_generations.is_some()
-                    || args.retain_elite.is_some()
-                {
-                    println!("[info] Existing harness loaded; configuration overrides ignored.");
+                                if args.batch_size.is_some()
+                                    || args.max_generations.is_some()
+                                    || args.retain_elite.is_some()
+                                    || args.crossover_rate.is_some()
+                                    || args.mutation_strategy.is_some()
+                                {
+                                    println!("[info] Existing harness loaded; configuration overrides ignored.");
+                                }
+                                harness
+                            })
+                    } else {
+                        let mut config = EvolutionConfig::default_smoke_test();
+                        if let Some(batch) = args.batch_size {
+                            config.batch_size = batch;
+                        }
+                        if let Some(max_gen) = args.max_generations {
+                            config.max_generations = max_gen;
+                        }
+                        if let Some(retain) = args.retain_elite {
+                            config.retain_elite = retain;
+                        }
+                        if let Some(rate) = args.crossover_rate {
+                            config.crossover_rate = rate;
+                        }
+                        if let Some(strategy) = &args.mutation_strategy {
+                            config.mutation_strategy = strategy.clone();
+                        }
+                
+                        // Environment variable override for adaptive mutation
+                        if let Ok(val) = env::var("ADAPTIVE_MUTATION_FLAG") {
+                            if val == "true" {
+                                config.adaptive_mutation = true;
+                            } else if val == "false" {
+                                config.adaptive_mutation = false;
+                            }
+                        }
+                
+                        println!(
+                            "[info] Initialising new harness with batch_size={} max_generations={} retain_elite={} crossover_rate={} mutation_strategy={:?} adaptive_mutation={}",
+                            config.batch_size, config.max_generations, config.retain_elite, config.crossover_rate, config.mutation_strategy, config.adaptive_mutation
+                        );
+                        Ok(AdversarialHarness::new(config))
+                    }
                 }
-                harness
-            })
-    } else {
-        let mut config = EvolutionConfig::default_smoke_test();
-        if let Some(batch) = args.batch_size {
-            config.batch_size = batch;
-        }
-        if let Some(max_gen) = args.max_generations {
-            config.max_generations = max_gen;
-        }
-        if let Some(retain) = args.retain_elite {
-            config.retain_elite = retain;
-        }
-        if let Some(rate) = args.crossover_rate {
-            config.crossover_rate = rate;
-        }
-        if let Some(strategy) = &args.mutation_strategy {
-            config.mutation_strategy = strategy.clone();
-        }
-        println!(
-            "[info] Initialising new harness with batch_size={} max_generations={} retain_elite={} crossover_rate={} mutation_strategy={:?}",
-            config.batch_size, config.max_generations, config.retain_elite, config.crossover_rate, config.mutation_strategy
-        );
-        Ok(AdversarialHarness::new(config))
-    }
-}
 
 fn persist_harness(harness: &AdversarialHarness, path: &Path) -> Result<(), String> {
     harness
@@ -487,6 +499,7 @@ Options:
   --seed <id>=<scenario>   Enqueue a seed scenario (can repeat)
   --stimulus <path>        Stimulus schedule JSONL applied to each run
   --crossover-rate <f32>   The probability of performing crossover (0.0 to 1.0)
+  --mutation-strategy <s>  The mutation strategy to use (e.g., Random)
   --help                   Show this message"
     );
 }
