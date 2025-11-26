@@ -41,19 +41,18 @@ testbed.
 - Emitted per-step summaries in telemetry and delivered correlation tooling to join runs with stimuli.                                                 
 - Added attack simulation smoke-test script and wired it into CI.                                                                                      
 - Authored attack simulation pipeline documentation.                                                                                                   
+- Implemented adaptive mutation (`AdaptiveMutation` struct and `adapt` function).
+- Integrated adaptive mutation into `AdversarialHarness` and `EvolutionConfig`.
+- Updated `perform_mutation` and `run_generations` to use adaptive mutation parameters.
+- Fixed ID generation in `perform_crossover`, `run_generations`, and `finalize_evaluation` to prevent 'File name too long' errors.
+- Added `test_adaptive_mutation` unit test.
+- Created `run_adaptive_mutation_analysis.sh` script to generate data for adaptive mutation analysis.
+- Updated `lineage_analysis.ipynb` to include adaptive mutation analysis.
+- Fixed various compiler errors and warnings related to argument parsing and unused variables, and addressed `lineage_analysis.ipynb` JSON formatting issues.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
-- Flesh out concrete Phase 1 behaviors (reaction–diffusion rules, threat scoring) within the `cellular` module.                                        
-- Design the telemetry pipeline for long-running simulations (decide on persistence vs. streaming backends).                                           
-- Draft scenario configuration schema docs to guide collaborators when authoring YAML manifests.                                                       
-- Evaluate the `activator` / `inhibitor` / `cooperative` signal taxonomy and external stimulus sources.                                                
-- Extend telemetry analytics workflow (visualization, ETL) for JSONL outputs.                                                                          
-- Scale attack simulation harness toward adversarial evolution loops.                                                                                  
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-1. Develop advanced analytics (e.g., notebook dashboards) that visualise step summaries and lineage trajectories.                                      
-2. Design adversarial attack evolution harness and integrate early smoke tests into CI.                                                                
-3. Update runtime documentation when introducing new signal topics or architectural behaviors.                                                         
                                                                                                                                                        
 ## Session Log                                                                                                                                         
 ### 2025-10-30 — Session 01                                                                                                                            
@@ -337,7 +336,7 @@ s on lineage pressure.
 - **Focus**: Enhance the adversarial harness with a crossover mechanism.
 - **Actions**:
     - Added a `crossover_rate` field to `EvolutionConfig` to control the probability of performing crossover.
-    - Implemented the `perform_crossover` function in `src/adversarial.rs` to create a new child candidate by combining properties from two parents.
+    - Implemented the `perform_crossover` function in `src/adversarial.rs` to create a new child candidate by combining properties of two parents.
     - Integrated the crossover logic into the `run_generations` evolutionary loop, using `crossover_rate` to choose between crossover and mutation.
     - Added a new unit test, `perform_crossover_creates_child`, to verify the crossover implementation.
     - Updated all existing tests to incorporate the new `crossover_rate` field in `EvolutionConfig` and resolved all compilation errors.
@@ -375,14 +374,14 @@ s on lineage pressure.
     - Await user feedback on the next steps.
 
 ### 2025-11-25 — Session 26
-- **Focus**: Implement sophisticated mutation and crossover strategies.
+- **Focus**: Implement sophisticated mutation strategies.
 - **Actions**:
     - Defined `CrossoverStrategy` enum with `Uniform` variant and `MutationStrategy` enum with `Random` variant.
     - Updated `EvolutionConfig` to include `crossover_strategy` and `mutation_strategy` fields and updated `default_smoke_test`.
     - Updated all test cases instantiating `EvolutionConfig` to include the new strategy fields.
     - Implemented `uniform_crossover_stimulus` function for performing uniform crossover on stimulus schedules.
     - Updated `perform_crossover` function signature to accept `artifact_root` and `CrossoverStrategy`, and modified its implementation to use `uniform_crossover_stimulus` for stimulus crossover.
-    - Updated `run_generations` function signature to accept `artifact_root` and passed it to `perform_crossover`.
+    - Updated `run_generations` function to provide the number of stimulus and threat spike events to `perform_mutation`.
     - Created `perform_mutation` function to encapsulate mutation logic and integrated it into `run_generations`.
     - Added a unit test `test_uniform_crossover_stimulus` to verify the uniform crossover logic.
     - Added a unit test `test_perform_mutation` to verify the mutation logic.
@@ -409,19 +408,18 @@ s on lineage pressure.
     - Discuss the results of the crossover analysis and decide on the next steps for improving the evolution strategies.
     - Refine and expand the visualizations in `lineage_analysis.ipynb` to provide deeper insights.
 
-### 2025-11-25 — Session 28
-- **Focus**: Implement sophisticated mutation strategies.
+### 2025-11-26 — Session 29
+- **Focus**: Implement adaptive mutation and setup analysis.
 - **Actions**:
-    - Added `SwapStimulus`, `RemoveStimulus`, and `ChangeThreatSpike` to the `Mutation` enum in `src/adversarial.rs`.
-    - Updated `apply_mutation` function in `src/stimulus.rs` to handle `SwapStimulus` and `RemoveStimulus` mutations.
-    - Updated `apply_mutation` function in `src/config.rs` to handle `ChangeThreatSpike` mutation.
-    - Updated `perform_mutation` function in `src/adversarial.rs` to include the new mutation types in the random mutation strategy.
-    - Updated `run_generations` function to provide the number of stimulus and threat spike events to `perform_mutation`.
-    - Updated unit tests to reflect the changes.
-    - Verified that all unit tests and binaries compile and pass.
+    - Implemented AdaptiveMutation struct and its adapt function.
+    - Integrated adaptive mutation into AdversarialHarness and EvolutionConfig.
+    - Updated perform_mutation and run_generations to use adaptive mutation parameters.
+    - Fixed ID generation in perform_crossover, run_generations, and finalize_evaluation to prevent 'File name too long' errors.
+    - Added test_adaptive_mutation unit test.
+    - Created run_adaptive_mutation_analysis.sh script to generate data for adaptive mutation analysis.
+    - Updated lineage_analysis.ipynb to include adaptive mutation analysis.
+    - Fixed various compiler errors and warnings related to argument parsing and unused variables, and addressed lineage_analysis.ipynb JSON formatting issues.
 - **Open Questions**:
-    - What other mutation strategies should be implemented?
-    - How can we best analyze the impact of different mutation strategies?
+    - None.
 - **Next Session Starting Point**:
-    - Discuss the results of the new mutation strategies and decide on the next steps for improving the evolution strategies.
-    - Refine and expand the `lineage_analysis.ipynb` notebook to analyze the impact of different mutation strategies.
+    - Await user feedback.
