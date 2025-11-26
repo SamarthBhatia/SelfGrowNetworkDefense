@@ -126,7 +126,7 @@ I-friendly runs?
 - **Focus**: Extend telemetry analytics toward richer dashboards and outline the adversarial attack evolution harness.                                 
 - **Plan**:                                                                                                                                            
   - Review existing telemetry analysis tooling to pinpoint dashboard-ready metrics and data flows.                                                     
-  - Prototype an approach for aggregating telemetry into dashboard-friendly structures (CSV/parquet or similar).                                       
+  - Prototype an. approach for aggregating telemetry into dashboard-friendly structures (CSV/parquet or similar).                                       
   - Define the requirements and initial module layout for the adversarial attack evolution harness.                                                    
 - **Actions**: Centralised telemetry parsing helpers, added `scripts/prepare_telemetry_dashboard.py` for CSV + Vega-Lite exports, refreshed the telemet
 ry analysis guide, and introduced the `adversarial` module with unit-tested harness scaffolding plus a design note. Wired the attack simulation script 
