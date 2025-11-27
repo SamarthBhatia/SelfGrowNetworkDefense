@@ -77,12 +77,15 @@ testbed.
 - Added `lineage_fitness_history` to `HarnessState`.
 - Updated `AdversarialHarness::snapshot_state` to save the `lineage_fitness_history`.
 - Updated `AdversarialHarness::from_state` to load the `lineage_fitness_history`.
+- Created `scripts/run_targeted_mutation_analysis.sh` to compare `Random` and `Targeted` mutation strategies.
+- Updated `lineage_analysis.ipynb` to load and visualize the results of the targeted mutation analysis.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
                                                                                                                                                        
 ### Next Up                                                                                                                                            
 - Continue exploring and implementing more sophisticated mutation and crossover strategies.
 - Persist `lineage_fitness_history` in `HarnessState`.
+- Analyze the effectiveness of the new targeted mutation strategy.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
 ### 2025-10-30 — Session 01                                                                                                                            
@@ -528,3 +531,13 @@ s on lineage pressure.
     - How can we analyze the effectiveness of the new targeted mutation strategy?
 - **Next Session Starting Point**:
     - Analyze the effectiveness of the new targeted mutation strategy by creating a new analysis script.
+
+### 2025-11-27 — Session 35
+- **Focus**: Analyze the effectiveness of the new targeted mutation strategy.
+- **Actions**:
+    - Created `scripts/run_targeted_mutation_analysis.sh` to compare `Random` and `Targeted` mutation strategies.
+    - Updated `lineage_analysis.ipynb` to load and visualize the results of the targeted mutation analysis.
+- **Open Questions**:
+    - How can we refine the targeted mutation strategy based on the analysis?
+- **Next Session Starting Point**:
+    - Review the results of the targeted mutation analysis and refine the strategy.
