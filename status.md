@@ -60,6 +60,12 @@ testbed.
 - Added `ChangeThreatSpikeDuration` to the random mutation pool in `perform_mutation` in `src/adversarial.rs`.
 - Added a unit test for `ChangeThreatSpikeDuration` in `src/config.rs`.
 - Fixed compilation error in `src/config.rs` by adding default `duration` to `ThreatSpike` in `AddSpike` mutation handler.
+- Added a `TwoPoint` variant to the `CrossoverStrategy` enum in `src/adversarial.rs`.
+- Implemented the logic for two-point crossover in `two_point_crossover_stimulus` in `src/adversarial.rs`.
+- Updated `perform_crossover` to use `two_point_crossover_stimulus` when the `TwoPoint` strategy is selected.
+- Added a unit test for `two_point_crossover_stimulus`.
+- Updated `EvolutionConfig::default_smoke_test()` to use the new `TwoPoint` crossover strategy.
+- Fixed a compilation error in the test suite by correctly instantiating `StimulusCommand`.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
                                                                                                                                                        
@@ -360,7 +366,7 @@ s on lineage pressure.
     - Develop advanced analytics and visualizations (e.g., Jupyter notebooks) to analyze the performance of the enhanced evolutionary harness, including the effects of crossover and different selection strategies.
     - Refine and expand mutation and crossover strategies based on insights from the new analytics.
 
-### 2025-11-25 — Session 24
+### 2_025-11-25 — Session 24
 - **Focus**: Develop advanced analytics and visualizations for the adversarial harness.
 - **Actions**:
     - Created a new Jupyter notebook `scripts/lineage_analysis.ipynb`.
@@ -469,3 +475,17 @@ s on lineage pressure.
     - What other sophisticated mutation types (e.g., targeted mutations based on lineage analysis) and crossover mechanisms (e.g., multi-point crossover, gene-level crossover) should be implemented next?
 - **Next Session Starting Point**:
     - Continue exploring and implementing more sophisticated mutation and crossover strategies.
+
+### 2025-11-27 — Session 32
+- **Focus**: Implement a new crossover strategy: TwoPoint.
+- **Actions**:
+    - Added a `TwoPoint` variant to the `CrossoverStrategy` enum in `src/adversarial.rs`.
+    - Implemented the logic for two-point crossover in `two_point_crossover_stimulus` in `src/adversarial.rs`.
+    - Updated `perform_crossover` to use `two_point_crossover_stimulus` when the `TwoPoint` strategy is selected.
+    - Added a unit test for `two_point_crossover_stimulus`.
+    - Updated `EvolutionConfig::default_smoke_test()` to use the new `TwoPoint` crossover strategy.
+    - Fixed a compilation error in the test suite by correctly instantiating `StimulusCommand`.
+- **Open Questions**:
+    - What other sophisticated mutation types (e.g., targeted mutations based on lineage analysis) and crossover mechanisms (e.g., multi-point crossover, gene-level crossover) should be implemented next?
+- **Next Session Starting Point**:
+    - Implement targeted mutations based on lineage analysis.

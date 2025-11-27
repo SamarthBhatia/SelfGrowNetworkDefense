@@ -35,6 +35,8 @@ pub enum SelectionStrategy {
 pub enum CrossoverStrategy {
     /// Each stimulus command is chosen from one of the parents at random.
     Uniform,
+    /// Two-point crossover.
+    TwoPoint,
 }
 
 use std::str::FromStr;
@@ -92,7 +94,7 @@ impl EvolutionConfig {
             retain_elite: true,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
-            crossover_strategy: CrossoverStrategy::Uniform,
+            crossover_strategy: CrossoverStrategy::TwoPoint,
             mutation_strategy: MutationStrategy::Random,
             mutation_rate: 0.8,
             mutation_strength: 1.5,
@@ -799,6 +801,60 @@ fn uniform_crossover_stimulus<R: Rng>(
     StimulusSchedule::new(child_commands, None)
 }
 
+/// Performs a two-point crossover between two stimulus schedules.
+fn two_point_crossover_stimulus<R: Rng>(
+    parent1: &StimulusSchedule,
+    parent2: &StimulusSchedule,
+    rng: &mut R,
+) -> StimulusSchedule {
+    let mut child_commands = BTreeMap::new();
+    let all_steps: Vec<u32> = parent1
+        .commands
+        .keys()
+        .chain(parent2.commands.keys())
+        .copied()
+        .collect::<HashSet<u32>>()
+        .into_iter()
+        .collect();
+    
+    if all_steps.len() < 2 {
+        // Not enough steps for two-point crossover, fallback to uniform
+        return uniform_crossover_stimulus(parent1, parent2, rng);
+    }
+
+    let point1 = rng.gen_range(0..all_steps.len());
+    let point2 = rng.gen_range(0..all_steps.len());
+    let (start, end) = (point1.min(point2), point1.max(point2));
+
+    for &step in &all_steps {
+        let p1_commands = parent1.commands.get(&step);
+        let p2_commands = parent2.commands.get(&step);
+
+        let chosen_commands = if step >= all_steps[start] && step <= all_steps[end] {
+            // Use parent2's commands in the crossover section
+            match (p1_commands, p2_commands) {
+                (_, Some(cmds2)) => Some(cmds2.clone()),
+                (Some(cmds1), _) => Some(cmds1.clone()), // Fallback to parent1
+                _ => None,
+            }
+        } else {
+            // Use parent1's commands outside the crossover section
+            match (p1_commands, p2_commands) {
+                (Some(cmds1), _) => Some(cmds1.clone()),
+                (_, Some(cmds2)) => Some(cmds2.clone()), // Fallback to parent2
+                _ => None,
+            }
+        };
+
+        if let Some(commands) = chosen_commands {
+            child_commands.insert(step, commands);
+        }
+    }
+
+    StimulusSchedule::new(child_commands, None)
+}
+
+
 fn generate_short_id(rng: &mut impl Rng) -> String {
     rng.sample_iter(&rand::distributions::Alphanumeric)
         .take(8)
@@ -836,6 +892,9 @@ pub fn perform_crossover<R: Rng>(
             let child_schedule = match crossover_strategy {
                 CrossoverStrategy::Uniform => {
                     uniform_crossover_stimulus(&p1_schedule, &p2_schedule, rng)
+                }
+                CrossoverStrategy::TwoPoint => {
+                    two_point_crossover_stimulus(&p1_schedule, &p2_schedule, rng)
                 }
             };
 
@@ -2054,34 +2113,49 @@ mod tests {
 
     #[test]
     fn test_uniform_crossover_stimulus() {
+        let mut rng = rand::thread_rng();
         let mut parent1_commands = BTreeMap::new();
-        parent1_commands.insert(
-            0,
-            vec![StimulusCommand {
-                step: 0,
-                topic: "a".to_string(),
-                value: 1.0,
-            }],
-        );
+        parent1_commands.insert(1, vec![StimulusCommand { step: 1, topic: "topic1".to_string(), value: 0.5 }]);
+        parent1_commands.insert(2, vec![StimulusCommand { step: 2, topic: "topic2".to_string(), value: 0.5 }]);
         let parent1 = StimulusSchedule::new(parent1_commands, None);
 
         let mut parent2_commands = BTreeMap::new();
-        parent2_commands.insert(
-            0,
-            vec![StimulusCommand {
-                step: 0,
-                topic: "b".to_string(),
-                value: 2.0,
-            }],
-        );
+        parent2_commands.insert(2, vec![StimulusCommand { step: 2, topic: "topic3".to_string(), value: 0.5 }]);
+        parent2_commands.insert(3, vec![StimulusCommand { step: 3, topic: "topic4".to_string(), value: 0.5 }]);
         let parent2 = StimulusSchedule::new(parent2_commands, None);
 
-        let mut rng = rand::thread_rng();
         let child = uniform_crossover_stimulus(&parent1, &parent2, &mut rng);
 
-        assert_eq!(child.commands.len(), 1);
-        let child_command = &child.commands.get(&0).unwrap()[0];
-        assert!(child_command.topic == "a" || child_command.topic == "b");
+        assert!(child.commands.contains_key(&1));
+        assert!(child.commands.contains_key(&2));
+        assert!(child.commands.contains_key(&3));
+    }
+
+    #[test]
+    fn test_two_point_crossover_stimulus() {
+        let mut rng = rand::thread_rng();
+        let mut parent1_commands = BTreeMap::new();
+        parent1_commands.insert(1, vec![StimulusCommand { step: 1, topic: "p1_topic1".to_string(), value: 0.5 }]);
+        parent1_commands.insert(2, vec![StimulusCommand { step: 2, topic: "p1_topic2".to_string(), value: 0.5 }]);
+        parent1_commands.insert(3, vec![StimulusCommand { step: 3, topic: "p1_topic3".to_string(), value: 0.5 }]);
+        parent1_commands.insert(4, vec![StimulusCommand { step: 4, topic: "p1_topic4".to_string(), value: 0.5 }]);
+        let parent1 = StimulusSchedule::new(parent1_commands, None);
+
+        let mut parent2_commands = BTreeMap::new();
+        parent2_commands.insert(1, vec![StimulusCommand { step: 1, topic: "p2_topic1".to_string(), value: 0.5 }]);
+        parent2_commands.insert(2,vec![StimulusCommand { step: 2, topic: "p2_topic2".to_string(), value: 0.5 }]);
+        parent2_commands.insert(3,vec![StimulusCommand { step: 3, topic: "p2_topic3".to_string(), value: 0.5 }]);
+        parent2_commands.insert(4,vec![StimulusCommand { step: 4, topic: "p2_topic4".to_string(), value: 0.5 }]);
+        let parent2 = StimulusSchedule::new(parent2_commands, None);
+
+        let child = two_point_crossover_stimulus(&parent1, &parent2, &mut rng);
+
+        // This is a probabilistic test. We can't know the exact output,
+        // but we can check if the structure is valid.
+        assert_eq!(child.commands.len(), 4);
+        for i in 1..=4 {
+            assert!(child.commands.contains_key(&i));
+        }
     }
 
     #[test]
