@@ -46,6 +46,8 @@ use std::str::FromStr;
 pub enum MutationStrategy {
     /// A random mutation is chosen from a predefined set.
     Random,
+    /// A targeted mutation is chosen based on lineage analysis.
+    Targeted,
 }
 
 impl FromStr for MutationStrategy {
@@ -54,6 +56,7 @@ impl FromStr for MutationStrategy {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Random" => Ok(MutationStrategy::Random),
+            "Targeted" => Ok(MutationStrategy::Targeted),
             _ => Err(()),
         }
     }
@@ -95,7 +98,7 @@ impl EvolutionConfig {
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
             crossover_strategy: CrossoverStrategy::TwoPoint,
-            mutation_strategy: MutationStrategy::Random,
+            mutation_strategy: MutationStrategy::Targeted,
             mutation_rate: 0.8,
             mutation_strength: 1.5,
             adaptive_mutation: false,
@@ -241,6 +244,7 @@ pub struct HarnessState {
     pub config: EvolutionConfig,
     pub backlog: VecDeque<AttackCandidate>,
     pub archive: Vec<AttackOutcome>,
+    pub lineage_fitness_history: HashMap<String, Vec<f32>>,
 }
 
 /// Execution artifacts captured while running a candidate.
@@ -322,6 +326,7 @@ pub struct AdversarialHarness {
     backlog: VecDeque<AttackCandidate>,
     archive: Vec<AttackOutcome>,
     adaptive_mutation: AdaptiveMutation,
+    lineage_fitness_history: HashMap<String, Vec<f32>>,
 }
 
 impl AdversarialHarness {
@@ -332,6 +337,7 @@ impl AdversarialHarness {
             backlog: VecDeque::new(),
             archive: Vec::new(),
             adaptive_mutation: AdaptiveMutation::new(),
+            lineage_fitness_history: HashMap::new(),
         }
     }
 
@@ -342,6 +348,7 @@ impl AdversarialHarness {
             backlog: state.backlog,
             archive: state.archive,
             adaptive_mutation: AdaptiveMutation::new(),
+            lineage_fitness_history: state.lineage_fitness_history,
         }
     }
 
@@ -399,6 +406,13 @@ impl AdversarialHarness {
 
     /// Persist an execution outcome for downstream analytics.
     pub fn record_outcome(&mut self, outcome: AttackOutcome) {
+        if let Some(parent_id) = &outcome.candidate.parent_id {
+            self.lineage_fitness_history
+                .entry(parent_id.clone())
+                .or_default()
+                .push(outcome.fitness_score);
+        }
+
         self.archive.push(outcome);
         let limit = self.config.max_generations as usize;
         if limit == 0 {
@@ -563,6 +577,7 @@ impl AdversarialHarness {
                         num_threat_spikes,
                         self.config.mutation_rate,
                         self.config.mutation_strength,
+                        &self.lineage_fitness_history,
                     );
 
                     AttackCandidate {
@@ -641,6 +656,7 @@ impl AdversarialHarness {
             config: self.config.clone(),
             backlog: self.backlog.clone(),
             archive: self.archive.clone(),
+            lineage_fitness_history: self.lineage_fitness_history.clone(),
         }
     }
 }
@@ -1252,12 +1268,31 @@ fn perform_mutation<R: Rng>(
     num_threat_spikes: usize,
     mutation_rate: f32,
     mutation_strength: f32,
+    lineage_fitness_history: &HashMap<String, Vec<f32>>,
 ) -> Option<Mutation> {
     if rng.gen_range(0.0..1.0) >= mutation_rate {
         return None;
     }
 
     match mutation_strategy {
+        MutationStrategy::Targeted => {
+            if let Some(mutation) = recommend_targeted_mutation(lineage_fitness_history, rng) {
+                return Some(mutation);
+            }
+            // Fallback to random if no targeted mutation is recommended
+            perform_mutation(
+                &MutationStrategy::Random,
+                stats,
+                fitness_score,
+                breach_observed,
+                rng,
+                num_stimulus_events,
+                num_threat_spikes,
+                mutation_rate,
+                mutation_strength,
+                lineage_fitness_history,
+            )
+        }
         MutationStrategy::Random => {
             let mut mutations = Vec::new();
 
@@ -1443,6 +1478,53 @@ fn outcome_note_for_analysis(analysis: &HarnessAnalysis) -> String {
     } else {
         base
     }
+}
+
+fn recommend_targeted_mutation<R: Rng>(
+    lineage_fitness_history: &HashMap<String, Vec<f32>>,
+    rng: &mut R,
+) -> Option<Mutation> {
+    const STAGNATION_THRESHOLD: usize = 3;
+
+    let stagnating_lineages: Vec<_> = lineage_fitness_history
+        .iter()
+        .filter(|(_, history)| {
+            if history.len() < STAGNATION_THRESHOLD {
+                return false;
+            }
+            let last_n_fitness: Vec<f32> = history.iter().rev().take(STAGNATION_THRESHOLD).copied().collect();
+            // Check if fitness is not increasing
+            last_n_fitness.windows(2).all(|w| w[0] <= w[1])
+        })
+        .collect();
+
+    if stagnating_lineages.is_empty() {
+        return None;
+    }
+
+    // Pick a random stagnating lineage to mutate
+    let (lineage_id, _) = stagnating_lineages.choose(rng).unwrap();
+
+    // Apply a more drastic mutation
+    let mutations = vec![
+        Mutation::IncreaseStimulus {
+            topic: "activator".to_string(),
+            factor: 2.0, // More drastic factor
+        },
+        Mutation::AddSpike {
+            step: rng.gen_range(0..100),
+            intensity: 1.0, // Higher intensity
+        },
+        Mutation::ChangeReproductionRate { factor: 1.5 },
+    ];
+
+    let mut chosen_mutation = mutations.choose(rng).cloned().unwrap();
+    // Associate the mutation with the stagnating lineage
+    if let Mutation::IncreaseStimulus { topic, .. } = &mut chosen_mutation {
+        *topic = format!("{}_{}", topic, lineage_id);
+    }
+    
+    Some(chosen_mutation)
 }
 
 #[cfg(test)]
@@ -2019,6 +2101,32 @@ mod tests {
     }
 
     #[test]
+    fn test_recommend_targeted_mutation() {
+        let mut rng = rand::thread_rng();
+        let mut history = HashMap::new();
+        history.insert(
+            "stagnant_lineage".to_string(),
+            vec![0.5, 0.5, 0.5],
+        );
+        history.insert(
+            "improving_lineage".to_string(),
+            vec![0.4, 0.5, 0.6],
+        );
+
+        let mutation = recommend_targeted_mutation(&history, &mut rng);
+        assert!(mutation.is_some());
+
+        let mut non_stagnating_history = HashMap::new();
+        non_stagnating_history.insert(
+            "improving_lineage".to_string(),
+            vec![0.4, 0.5, 0.6],
+        );
+        let mutation = recommend_targeted_mutation(&non_stagnating_history, &mut rng);
+        assert!(mutation.is_none());
+    }
+
+
+    #[test]
     fn perform_crossover_creates_child() {
         let parent1_stimulus_file = NamedTempFile::new().unwrap();
         let parent2_stimulus_file = NamedTempFile::new().unwrap();
@@ -2186,6 +2294,7 @@ mod tests {
             0,
             0.8,
             1.5,
+            &HashMap::new(),
         );
         assert!(mutation.is_some());
     }

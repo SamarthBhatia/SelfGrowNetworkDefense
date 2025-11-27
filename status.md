@@ -66,11 +66,23 @@ testbed.
 - Added a unit test for `two_point_crossover_stimulus`.
 - Updated `EvolutionConfig::default_smoke_test()` to use the new `TwoPoint` crossover strategy.
 - Fixed a compilation error in the test suite by correctly instantiating `StimulusCommand`.
+- Added a `lineage_fitness_history` field to `AdversarialHarness` to track lineage fitness.
+- Updated `AdversarialHarness::record_outcome` to populate the `lineage_fitness_history`.
+- Added a `Targeted` variant to the `MutationStrategy` enum.
+- Implemented `recommend_targeted_mutation` to identify and mutate stagnating lineages.
+- Updated `perform_mutation` to use the new targeted mutation strategy.
+- Added a unit test for `recommend_targeted_mutation`.
+- Updated `EvolutionConfig::default_smoke_test()` to use the new `Targeted` mutation strategy.
+- Fixed compilation errors in the test suite.
+- Added `lineage_fitness_history` to `HarnessState`.
+- Updated `AdversarialHarness::snapshot_state` to save the `lineage_fitness_history`.
+- Updated `AdversarialHarness::from_state` to load the `lineage_fitness_history`.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
                                                                                                                                                        
 ### Next Up                                                                                                                                            
 - Continue exploring and implementing more sophisticated mutation and crossover strategies.
+- Persist `lineage_fitness_history` in `HarnessState`.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
 ### 2025-10-30 — Session 01                                                                                                                            
@@ -489,3 +501,30 @@ s on lineage pressure.
     - What other sophisticated mutation types (e.g., targeted mutations based on lineage analysis) and crossover mechanisms (e.g., multi-point crossover, gene-level crossover) should be implemented next?
 - **Next Session Starting Point**:
     - Implement targeted mutations based on lineage analysis.
+
+### 2025-11-27 — Session 33
+- **Focus**: Implement a targeted mutation strategy based on lineage analysis.
+- **Actions**:
+    - Added a `lineage_fitness_history` field to `AdversarialHarness` to track lineage fitness.
+    - Updated `AdversarialHarness::record_outcome` to populate the `lineage_fitness_history`.
+    - Added a `Targeted` variant to the `MutationStrategy` enum.
+    - Implemented `recommend_targeted_mutation` to identify and mutate stagnating lineages.
+    - Updated `perform_mutation` to use the new targeted mutation strategy.
+    - Added a unit test for `recommend_targeted_mutation`.
+    - Updated `EvolutionConfig::default_smoke_test()` to use the new `Targeted` mutation strategy.
+    - Fixed compilation errors in the test suite.
+- **Open Questions**:
+    - How should the `lineage_fitness_history` be persisted in `HarnessState`?
+- **Next Session Starting Point**:
+    - Persist `lineage_fitness_history` in `HarnessState`.
+
+### 2025-11-27 — Session 34
+- **Focus**: Persist `lineage_fitness_history` in `HarnessState`.
+- **Actions**:
+    - Added `lineage_fitness_history` to `HarnessState`.
+    - Updated `AdversarialHarness::snapshot_state` to save the `lineage_fitness_history`.
+    - Updated `AdversarialHarness::from_state` to load the `lineage_fitness_history`.
+- **Open Questions**:
+    - How can we analyze the effectiveness of the new targeted mutation strategy?
+- **Next Session Starting Point**:
+    - Analyze the effectiveness of the new targeted mutation strategy by creating a new analysis script.
