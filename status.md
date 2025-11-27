@@ -49,7 +49,7 @@ testbed.
 - Created `run_adaptive_mutation_analysis.sh` script to generate data for adaptive mutation analysis.
 - Updated `lineage_analysis.ipynb` to include adaptive mutation analysis.
 - Fixed various compiler errors and warnings related to argument parsing and unused variables, and addressed `lineage_analysis.ipynb` JSON formatting issues.
-- Implemented several new mutation strategies (`ChangeReproductionRate`, `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`) and integrated them into the random mutation pool.
+- Implemented several new mutation strategies (`ChangeReproductionRate`, `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`, `ChangeThreatSpikeTime`) and integrated them into the random mutation pool.
 - Refined crossover parent ID generation for shorter, more manageable identifiers.
 - Updated relevant unit tests to ensure compatibility with new ID generation and the new mutation strategies.
                                                                                                                                                        
@@ -440,6 +440,8 @@ s on lineage pressure.
     - Added unit tests for `ChangeInitialCellCount` and ensured all tests pass.
     - Implemented another new mutation strategy (`ChangeThreatProfile`) and integrated it into the random mutation pool.
     - Added unit tests for `ChangeThreatProfile` and ensured all tests pass.
+    - Implemented another new mutation strategy (`ChangeThreatSpikeTime`) and integrated it into the random mutation pool.
+    - Added unit tests for `ChangeThreatSpikeTime` and ensured all tests pass.
 - **Open Questions**:
     - What other sophisticated mutation types (e.g., targeted mutations based on lineage analysis) and crossover mechanisms (e.g., multi-point crossover, gene-level crossover) should be implemented next?
 - **Next Session Starting Point**:
