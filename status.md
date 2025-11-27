@@ -49,13 +49,16 @@ testbed.
 - Created `run_adaptive_mutation_analysis.sh` script to generate data for adaptive mutation analysis.
 - Updated `lineage_analysis.ipynb` to include adaptive mutation analysis.
 - Fixed various compiler errors and warnings related to argument parsing and unused variables, and addressed `lineage_analysis.ipynb` JSON formatting issues.
-- Implemented several new mutation strategies (`ChangeReproductionRate`, `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`, `ChangeThreatSpikeTime`) and integrated them into the random mutation pool.
+- Implemented a new mutation strategy (`ChangeReproductionRate`) and integrated it into the random mutation pool.
 - Refined crossover parent ID generation for shorter, more manageable identifiers.
-- Updated relevant unit tests to ensure compatibility with new ID generation and the new mutation strategies.
+- Updated relevant unit tests to ensure compatibility with new ID generation and the new mutation strategy.
+- Implemented several new mutation strategies (`ChangeReproductionRate`, `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`, `ChangeThreatSpikeTime`) and integrated them into the random mutation pool.
+- Added comprehensive unit tests for `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`, and `ChangeThreatSpikeTime` mutations, ensuring all tests pass.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
                                                                                                                                                        
 ### Next Up                                                                                                                                            
+- Continue exploring and implementing more sophisticated mutation and crossover strategies.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
 ### 2025-10-30 — Session 01                                                                                                                            
