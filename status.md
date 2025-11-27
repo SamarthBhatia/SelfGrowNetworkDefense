@@ -54,6 +54,12 @@ testbed.
 - Updated relevant unit tests to ensure compatibility with new ID generation and the new mutation strategy.
 - Implemented several new mutation strategies (`ChangeReproductionRate`, `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`, `ChangeThreatSpikeTime`) and integrated them into the random mutation pool.
 - Added comprehensive unit tests for `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`, and `ChangeThreatSpikeTime` mutations, ensuring all tests pass.
+- Added a `duration` field to `ThreatSpike` in `src/config.rs` and updated `ScenarioConfig::threat_level_for_step` to account for it.
+- Added `ChangeThreatSpikeDuration` to the `Mutation` enum in `src/adversarial.rs`.
+- Implemented `apply_mutation` for `ChangeThreatSpikeDuration` in `src/config.rs`.
+- Added `ChangeThreatSpikeDuration` to the random mutation pool in `perform_mutation` in `src/adversarial.rs`.
+- Added a unit test for `ChangeThreatSpikeDuration` in `src/config.rs`.
+- Fixed compilation error in `src/config.rs` by adding default `duration` to `ThreatSpike` in `AddSpike` mutation handler.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
                                                                                                                                                        
@@ -449,3 +455,17 @@ s on lineage pressure.
     - What other sophisticated mutation types (e.g., targeted mutations based on lineage analysis) and crossover mechanisms (e.g., multi-point crossover, gene-level crossover) should be implemented next?
 - **Next Session Starting Point**:
     - Implement a new mutation strategy.
+
+### 2025-11-27 — Session 31
+- **Focus**: Implement a new mutation strategy: ChangeThreatSpikeDuration.
+- **Actions**:
+    - Added a `duration` field to `ThreatSpike` in `src/config.rs` and updated `ScenarioConfig::threat_level_for_step` to account for it.
+    - Added `ChangeThreatSpikeDuration` to the `Mutation` enum in `src/adversarial.rs`.
+    - Implemented `apply_mutation` for `ChangeThreatSpikeDuration` in `src/config.rs`.
+    - Added `ChangeThreatSpikeDuration` to the random mutation pool in `perform_mutation` in `src/adversarial.rs`.
+    - Added a unit test for `ChangeThreatSpikeDuration` in `src/config.rs`.
+    - Fixed compilation error in `src/config.rs` by adding default `duration` to `ThreatSpike` in `AddSpike` mutation handler.
+- **Open Questions**:
+    - What other sophisticated mutation types (e.g., targeted mutations based on lineage analysis) and crossover mechanisms (e.g., multi-point crossover, gene-level crossover) should be implemented next?
+- **Next Session Starting Point**:
+    - Continue exploring and implementing more sophisticated mutation and crossover strategies.

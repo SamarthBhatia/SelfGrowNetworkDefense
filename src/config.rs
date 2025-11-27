@@ -18,6 +18,8 @@ pub struct ScenarioConfig {
     pub threat_profile: ThreatProfile,
     #[serde(default)]
     pub spikes: Vec<ThreatSpike>,
+    #[serde(default = "default_cell_reproduction_rate")]
+    pub cell_reproduction_rate: f32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -45,6 +47,7 @@ impl Default for ScenarioConfig {
             simulation_steps: default_simulation_steps(),
             threat_profile: ThreatProfile::default(),
             spikes: Vec::new(),
+            cell_reproduction_rate: default_cell_reproduction_rate(),
         }
     }
 }
@@ -69,10 +72,20 @@ fn default_spike_threshold() -> f32 {
     0.8
 }
 
+fn default_cell_reproduction_rate() -> f32 {
+    1.0
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ThreatSpike {
     pub step: u32,
     pub intensity: f32,
+    #[serde(default = "default_spike_duration")]
+    pub duration: u32,
+}
+
+fn default_spike_duration() -> u32 {
+    1
 }
 
 #[derive(Debug)]
@@ -135,7 +148,7 @@ impl ScenarioConfig {
     pub fn threat_level_for_step(&self, step: u32) -> f32 {
         let mut threat = self.threat_profile.background_threat;
         for spike in &self.spikes {
-            if spike.step == step {
+            if step >= spike.step && step < spike.step + spike.duration {
                 threat += spike.intensity;
             }
         }
@@ -150,6 +163,7 @@ impl ScenarioConfig {
                 self.spikes.push(ThreatSpike {
                     step: *step,
                     intensity: *intensity,
+                    duration: default_spike_duration(), // Add default duration
                 });
                 self.spikes.sort_by_key(|s| s.step);
             }
@@ -161,6 +175,25 @@ impl ScenarioConfig {
                 if let Some(spike) = self.spikes.get_mut(*event_index) {
                     spike.step = *new_step;
                     spike.intensity = *new_intensity;
+                }
+            }
+            Mutation::ChangeReproductionRate { factor } => {
+                self.cell_reproduction_rate *= factor;
+            }
+            Mutation::ChangeInitialCellCount { count } => {
+                self.initial_cell_count = *count;
+            }
+            Mutation::ChangeThreatProfile { profile } => {
+                self.threat_profile = profile.clone();
+            }
+            Mutation::ChangeThreatSpikeTime { spike_index, new_step } => {
+                if let Some(spike) = self.spikes.get_mut(*spike_index) {
+                    spike.step = *new_step;
+                }
+            }
+            Mutation::ChangeThreatSpikeDuration { spike_index, new_duration } => {
+                if let Some(spike) = self.spikes.get_mut(*spike_index) {
+                    spike.duration = *new_duration;
                 }
             }
             _ => {
@@ -210,13 +243,72 @@ threat_profile:
 spikes:
   - step: 1
     intensity: 0.3
+    duration: 1
   - step: 3
     intensity: 0.5
+    duration: 1
 "#;
         let config = load_from_reader(yaml.as_bytes()).expect("config should parse");
         assert!((config.threat_level_for_step(0) - 0.2).abs() < f32::EPSILON);
         assert!((config.threat_level_for_step(1) - 0.5).abs() < f32::EPSILON);
         assert!((config.threat_level_for_step(2) - 0.2).abs() < f32::EPSILON);
         assert!((config.threat_level_for_step(3) - 0.7).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_change_initial_cell_count_mutation() {
+        let mut scenario_config = ScenarioConfig::default();
+        assert_eq!(scenario_config.initial_cell_count, 1);
+
+        let mutation = crate::adversarial::Mutation::ChangeInitialCellCount { count: 5 };
+        scenario_config.apply_mutation(&mutation);
+        assert_eq!(scenario_config.initial_cell_count, 5);
+
+        let mutation = crate::adversarial::Mutation::ChangeInitialCellCount { count: 10 };
+        scenario_config.apply_mutation(&mutation);
+        assert_eq!(scenario_config.initial_cell_count, 10);
+    }
+
+    #[test]
+    fn test_change_threat_profile_mutation() {
+        let mut scenario_config = ScenarioConfig::default();
+        assert!((scenario_config.threat_profile.background_threat - 0.1).abs() < f32::EPSILON);
+        assert!((scenario_config.threat_profile.spike_threshold - 0.8).abs() < f32::EPSILON);
+
+        let new_profile = ThreatProfile {
+            background_threat: 0.5,
+            spike_threshold: 0.9,
+        };
+        let mutation = crate::adversarial::Mutation::ChangeThreatProfile { profile: new_profile.clone() };
+        scenario_config.apply_mutation(&mutation);
+        assert!((scenario_config.threat_profile.background_threat - 0.5).abs() < f32::EPSILON);
+        assert!((scenario_config.threat_profile.spike_threshold - 0.9).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_change_threat_spike_duration_mutation() {
+        let mut scenario_config = ScenarioConfig::default();
+        scenario_config.spikes.push(ThreatSpike {
+            step: 10,
+            intensity: 0.5,
+            duration: 5,
+        });
+
+        assert_eq!(scenario_config.spikes[0].duration, 5);
+
+        let mutation = crate::adversarial::Mutation::ChangeThreatSpikeDuration {
+            spike_index: 0,
+            new_duration: 10,
+        };
+        scenario_config.apply_mutation(&mutation);
+        assert_eq!(scenario_config.spikes[0].duration, 10);
+
+        // Test out of bounds index (should not panic or change anything)
+        let mutation_oob = crate::adversarial::Mutation::ChangeThreatSpikeDuration {
+            spike_index: 99,
+            new_duration: 20,
+        };
+        scenario_config.apply_mutation(&mutation_oob);
+        assert_eq!(scenario_config.spikes[0].duration, 10);
     }
 }

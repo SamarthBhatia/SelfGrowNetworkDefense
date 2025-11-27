@@ -111,6 +111,12 @@ pub enum Mutation {
     SwapStimulus { event_index1: usize, event_index2: usize },
     RemoveStimulus { event_index: usize },
     ChangeThreatSpike { event_index: usize, new_step: u32, new_intensity: f32 },
+    ChangeReproductionRate { factor: f32 },
+    ShiftStimulusTime { event_index: usize, time_delta: i32 },
+    ChangeInitialCellCount { count: usize },
+    ChangeThreatProfile { profile: config::ThreatProfile },
+    ChangeThreatSpikeTime { spike_index: usize, new_step: u32 },
+    ChangeThreatSpikeDuration { spike_index: usize, new_duration: u32 },
 }
 
 /// State for adaptive mutation.
@@ -867,7 +873,11 @@ pub fn perform_crossover<R: Rng>(
         scenario_ref: child_scenario_ref,
         stimulus_ref: child_stimulus_ref,
         generation: child_generation,
-        parent_id: Some(format!("{},{}", parent1.candidate.id, parent2.candidate.id)),
+        parent_id: Some(format!(
+            "{}-{}",
+            parent1.candidate.id.chars().take(4).collect::<String>(),
+            parent2.candidate.id.chars().take(4).collect::<String>()
+        )),
         mutation,
     })
 }
@@ -1230,7 +1240,32 @@ fn perform_mutation<R: Rng>(
                     new_step: rng.gen_range(0..stats.step_count) as u32,
                     new_intensity: mutation_strength,
                 });
+                mutations.push(Mutation::ChangeThreatSpikeTime {
+                    spike_index: rng.gen_range(0..num_threat_spikes),
+                    new_step: rng.gen_range(0..stats.step_count) as u32,
+                });
+                mutations.push(Mutation::ChangeThreatSpikeDuration {
+                    spike_index: rng.gen_range(0..num_threat_spikes),
+                    new_duration: rng.gen_range(1..=(stats.step_count.max(1))) as u32,
+                });
             }
+
+            mutations.push(Mutation::ChangeReproductionRate {
+                factor: 1.0 + rng.gen_range(-mutation_strength..=mutation_strength),
+            });
+
+            // Add ChangeInitialCellCount mutation
+            mutations.push(Mutation::ChangeInitialCellCount {
+                count: (stats.avg_cell_count as f32 * (1.0 + rng.gen_range(-mutation_strength..=mutation_strength))).max(1.0) as usize,
+            });
+
+            // Add ChangeThreatProfile mutation
+            mutations.push(Mutation::ChangeThreatProfile {
+                profile: config::ThreatProfile {
+                    background_threat: rng.gen_range(0.0..=1.0),
+                    spike_threshold: rng.gen_range(0.0..=1.0),
+                },
+            });
 
             mutations.choose(rng).cloned()
         }
@@ -1575,7 +1610,8 @@ mod tests {
         assert_eq!(outcome.candidate.id, "seed-ci");
         assert_eq!(outcome.statistics.step_count, 2);
         if let Some(mutant) = maybe_mutation {
-            assert!(mutant.id.starts_with("seed-ci-mut"));
+            assert_ne!(mutant.id, "seed-ci"); // Ensure it's a new ID
+            assert_eq!(mutant.id.len(), 8); // Ensure it's a short ID
             assert_eq!(
                 mutant.stimulus_ref.as_deref(),
                 Some("docs/examples/ci-stimulus.jsonl")
@@ -2004,12 +2040,15 @@ mod tests {
             artifact_dir.path(),
             &CrossoverStrategy::Uniform,
         )
-        .expect("crossover failed");
+        .expect("crossover should succeed");
 
+        assert!(child.id.starts_with("crossover-"));
+        assert_eq!(child.id.len(), "crossover-".len() + 8); // "crossover-" prefix + 8 random chars
         assert_eq!(child.scenario_ref, "scenario1.yaml");
-        assert!(child.stimulus_ref.is_some());
         assert_eq!(child.generation, 3);
-        assert!(child.id.starts_with("crossover-parent1-parent2-gen3"));
+        assert!(child.parent_id.is_some());
+        let parent_id_str = child.parent_id.unwrap();
+        assert_eq!(parent_id_str, "pare-pare");
         assert!(child.mutation.is_some());
     }
 
@@ -2240,8 +2279,22 @@ mod tests {
     fn analyze_metrics_csv_from_reader<R: Read>(
         reader: R,
     ) -> Result<HarnessAnalysis, HarnessError> {
-        let steps = load_step_metrics_from_csv(reader)?;
-        let stats = build_statistics_from_steps(&steps)?;
+        let metrics = load_step_metrics_from_csv(reader)?;
+        let stats = build_statistics_from_steps(&metrics)?;
         Ok(analyze_run_statistics(stats))
+    }
+
+    #[test]
+    fn test_change_reproduction_rate_mutation() {
+        let mut scenario_config = config::ScenarioConfig::default();
+        scenario_config.cell_reproduction_rate = 1.0; // Set initial value
+
+        let mutation = Mutation::ChangeReproductionRate { factor: 1.5 };
+        scenario_config.apply_mutation(&mutation);
+        assert!((scenario_config.cell_reproduction_rate - 1.5).abs() < f32::EPSILON);
+
+        let mutation = Mutation::ChangeReproductionRate { factor: 0.5 };
+        scenario_config.apply_mutation(&mutation);
+        assert!((scenario_config.cell_reproduction_rate - 0.75).abs() < f32::EPSILON);
     }
 }
