@@ -541,3 +541,16 @@ s on lineage pressure.
     - How can we refine the targeted mutation strategy based on the analysis?
 - **Next Session Starting Point**:
     - Review the results of the targeted mutation analysis and refine the strategy.
+
+### 2025-11-28 — Session 36
+- **Focus**: Refine the targeted mutation strategy based on a review of the existing implementation.
+- **Actions**:
+    - Identified a flaw in `recommend_targeted_mutation` where it created invalid stimulus topic names (e.g., `activator_<lineage_id>`), rendering the targeted aspect ineffective.
+    - Expanded the pool of "drastic" mutations for stagnating lineages to increase variety and improve the chances of escaping local optima.
+    - Removed the flawed logic that malformed topic names. The "targeted" nature now comes from applying a strong, random mutation specifically in response to a detected stagnation event.
+    - Updated the `test_recommend_targeted_mutation` unit test to validate the corrected and more robust logic.
+    - Verified that all 32 unit tests pass, ensuring no regressions were introduced.
+- **Open Questions**:
+    - Now that the targeted mutation logic is more robust, will the analysis from `run_targeted_mutation_analysis.sh` show a significant difference in performance?
+- **Next Session Starting Point**:
+    - Run the `run_targeted_mutation_analysis.sh` script to gather new data and analyze the effectiveness of the refined targeted mutation strategy using `lineage_analysis.ipynb`.
