@@ -567,3 +567,15 @@ s on lineage pressure.
     - Are there new patterns in the fitness distribution that suggest areas for further refinement?
 - **Next Session Starting Point**:
     - Review the plots in `scripts/lineage_analysis.ipynb` to interpret the results of the targeted mutation analysis and decide on the next steps for evolutionary strategy refinement.
+
+### 2025-11-28 — Session 38
+- **Focus**: Further diversify the `Targeted` mutation strategy to improve its effectiveness.
+- **Actions**:
+    - Expanded the pool of "drastic" mutations in `recommend_targeted_mutation` to include `SwapStimulus`, `ChangeThreatSpikeTime`, and `ChangeInitialCellCount`. This increases the variety of mutations applied to stagnating lineages to better escape local optima.
+    - Corrected a syntax error (`.` instead of `::`) that was introduced when adding the new mutations.
+    - Updated the `test_recommend_targeted_mutation` unit test to accept the newly added mutation types, ensuring the test suite covers the expanded logic.
+    - Verified that all 32 tests pass, confirming the changes are correct and have not introduced regressions.
+- **Open Questions**:
+    - Will this more diverse set of drastic mutations lead to a clearer performance improvement for the `Targeted` strategy?
+- **Next Session Starting Point**:
+    - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
