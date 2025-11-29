@@ -1503,28 +1503,29 @@ fn recommend_targeted_mutation<R: Rng>(
     }
 
     // Pick a random stagnating lineage to mutate
-    let (lineage_id, _) = stagnating_lineages.choose(rng).unwrap();
+    let (_lineage_id, _) = stagnating_lineages.choose(rng).unwrap();
 
-    // Apply a more drastic mutation
+    // Apply a more drastic mutation from an expanded pool. The "targeted" aspect is that
+    // we are applying a strong mutation because a lineage was detected as stagnating.
     let mutations = vec![
         Mutation::IncreaseStimulus {
             topic: "activator".to_string(),
-            factor: 2.0, // More drastic factor
+            factor: rng.gen_range(1.5..=2.5),
         },
         Mutation::AddSpike {
             step: rng.gen_range(0..100),
-            intensity: 1.0, // Higher intensity
+            intensity: rng.gen_range(0.7..=1.2),
         },
-        Mutation::ChangeReproductionRate { factor: 1.5 },
+        Mutation::ChangeReproductionRate { factor: rng.gen_range(1.2..=1.8) },
+        Mutation::ChangeThreatProfile {
+            profile: config::ThreatProfile {
+                background_threat: rng.gen_range(0.2..=0.8),
+                spike_threshold: rng.gen_range(0.4..=1.0),
+            }
+        }
     ];
 
-    let mut chosen_mutation = mutations.choose(rng).cloned().unwrap();
-    // Associate the mutation with the stagnating lineage
-    if let Mutation::IncreaseStimulus { topic, .. } = &mut chosen_mutation {
-        *topic = format!("{}_{}", topic, lineage_id);
-    }
-    
-    Some(chosen_mutation)
+    mutations.choose(rng).cloned()
 }
 
 #[cfg(test)]
@@ -2104,17 +2105,22 @@ mod tests {
     fn test_recommend_targeted_mutation() {
         let mut rng = rand::thread_rng();
         let mut history = HashMap::new();
-        history.insert(
-            "stagnant_lineage".to_string(),
-            vec![0.5, 0.5, 0.5],
-        );
-        history.insert(
-            "improving_lineage".to_string(),
-            vec![0.4, 0.5, 0.6],
-        );
+        history.insert("stagnant_lineage".to_string(), vec![0.5, 0.5, 0.5]);
+        history.insert("healthy_lineage".to_string(), vec![0.5, 0.6, 0.7]);
 
         let mutation = recommend_targeted_mutation(&history, &mut rng);
+
         assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+
+        // Check that the mutation is one of the drastic types and the topic is not malformed.
+        match mutation {
+            Mutation::IncreaseStimulus { topic, .. } => assert_eq!(topic, "activator"),
+            Mutation::AddSpike { .. } => (),
+            Mutation::ChangeReproductionRate { .. } => (),
+            Mutation::ChangeThreatProfile { .. } => (),
+            _ => panic!("Unexpected mutation type for stagnating lineage: {:?}", mutation),
+        }
 
         let mut non_stagnating_history = HashMap::new();
         non_stagnating_history.insert(
