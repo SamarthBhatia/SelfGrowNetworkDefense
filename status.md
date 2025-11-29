@@ -554,3 +554,16 @@ s on lineage pressure.
     - Now that the targeted mutation logic is more robust, will the analysis from `run_targeted_mutation_analysis.sh` show a significant difference in performance?
 - **Next Session Starting Point**:
     - Run the `run_targeted_mutation_analysis.sh` script to gather new data and analyze the effectiveness of the refined targeted mutation strategy using `lineage_analysis.ipynb`.
+
+### 2025-11-28 — Session 37
+- **Focus**: Execute the targeted mutation analysis and prepare the results for visualization.
+- **Actions**:
+    - Executed the `scripts/run_targeted_mutation_analysis.sh` script, which ran 5-generation simulations for both the `Random` and `Targeted` mutation strategies.
+    - Investigated the output and determined that the `prepare_telemetry_dashboard.py` script was not suitable for aggregating multi-run experiments.
+    - Updated the `scripts/lineage_analysis.ipynb` notebook with Python code to directly load, process, and aggregate the `harness_state.json` files from both the `random` and `targeted` run directories.
+    - The notebook now generates plots to compare average fitness, maximum fitness, and fitness distribution per generation, providing a comprehensive view of the performance of each strategy.
+- **Open Questions**:
+    - Based on the visual analysis, is the refined `Targeted` strategy significantly outperforming the `Random` strategy?
+    - Are there new patterns in the fitness distribution that suggest areas for further refinement?
+- **Next Session Starting Point**:
+    - Review the plots in `scripts/lineage_analysis.ipynb` to interpret the results of the targeted mutation analysis and decide on the next steps for evolutionary strategy refinement.
