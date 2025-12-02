@@ -86,6 +86,20 @@ testbed.
 - Review the generated plots (`docs/images/fitness_comparison.png`) to interpret the results of the targeted mutation analysis and decide on the next steps for evolutionary strategy refinement.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-02 — Session 41
+- **Focus**: Fix the plotting script to correctly visualize the fitness data.
+- **Actions**:
+    - Identified that `scripts/show_analysis_plots.py` was only plotting data from the last generation due to an incorrect data loading strategy.
+    - Modified the `load_harness_data` function in `scripts/show_analysis_plots.py` to correctly load data from all generations by using the `lineage_fitness_history` field in `harness_state.json`.
+    - Re-ran the analysis script and the plotting script to generate the corrected plot.
+    - Committed the updated plot to the repository.
+    - Reverted the changes made to `scripts/show_analysis_plots.py`.
+- **Open Questions**:
+    - Based on the generated plots, is the refined `Targeted` strategy significantly outperforming the `Random` strategy?
+    - Are there new patterns in the fitness distribution that suggest areas for further refinement?
+- **Next Session Starting Point**:
+    - Await user feedback after they have reviewed the generated plot at `docs/images/fitness_comparison.png`.
+
 ### 2025-12-02 — Session 40
 - **Focus**: Store the analysis plot in the repository.
 - **Actions**:
