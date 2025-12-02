@@ -83,9 +83,23 @@ testbed.
 ### In Progress                                                                                                                                        
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-- Review the generated plots (`/Users/samarthbhatia/.gemini/tmp/8862ab42df8198182c5d13a5e01711aff42cff39f2afb26da0e7515625229f3e/analysis_plots/fitness_comparison.png`) to interpret the results of the targeted mutation analysis and decide on the next steps for evolutionary strategy refinement.
+- Review the generated plots (`docs/images/fitness_comparison.png`) to interpret the results of the targeted mutation analysis and decide on the next steps for evolutionary strategy refinement.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-02 — Session 40
+- **Focus**: Store the analysis plot in the repository.
+- **Actions**:
+    - Created a new directory `docs/images`.
+    - Modified `scripts/show_analysis_plots.py` to save the generated plot to `docs/images/fitness_comparison.png`.
+    - Executed `scripts/show_analysis_plots.py` to generate and save the plot.
+    - Committed the new plot to the repository.
+    - Reverted the changes made to `scripts/show_analysis_plots.py`.
+- **Open Questions**:
+    - Based on the generated plots, is the refined `Targeted` strategy significantly outperforming the `Random` strategy?
+    - Are there new patterns in the fitness distribution that suggest areas for further refinement?
+- **Next Session Starting Point**:
+    - Await user feedback after they have reviewed the generated plot at `docs/images/fitness_comparison.png`.
+
 ### 2025-12-02 — Session 39
 - **Focus**: Execute the targeted mutation analysis and prepare the results for visualization.
 - **Actions**:
