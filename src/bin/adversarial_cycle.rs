@@ -30,8 +30,8 @@ fn run() -> Result<(), String> {
     if let Some(max_generations) = args.max_generations {
         config.max_generations = max_generations;
     }
-    if let Some(retain_elite) = args.retain_elite {
-        config.retain_elite = retain_elite;
+    if let Some(elite_size) = args.elite_size {
+        config.elite_size = elite_size;
     }
 
     let mut harness = if let Some(state_path) = args.state_path.as_ref() {
@@ -44,18 +44,18 @@ fn run() -> Result<(), String> {
             })?;
             if args.batch_size.is_some()
                 || args.max_generations.is_some()
-                || args.retain_elite.is_some()
+                || args.elite_size.is_some()
             {
                 println!("[info] Loaded existing harness; configuration overrides ignored.");
             }
             harness
         } else {
             println!(
-                "[info] Initialising new harness state at {} (batch_size={}, max_generations={}, retain_elite={})",
+                "[info] Initialising new harness state at {} (batch_size={}, max_generations={}, elite_size={})",
                 state_path.display(),
                 config.batch_size,
                 config.max_generations,
-                config.retain_elite
+                config.elite_size
             );
             AdversarialHarness::new(config.clone())
         }
@@ -227,7 +227,7 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut stimulus_path: Option<PathBuf> = None;
     let mut batch_size: Option<usize> = None;
     let mut max_generations: Option<u32> = None;
-    let mut retain_elite: Option<bool> = None;
+    let mut elite_size: Option<usize> = None;
     let mut emit_json: Option<PathBuf> = None;
     let mut state_path: Option<PathBuf> = None;
 
@@ -285,8 +285,16 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Max generations must be a positive integer".to_string())?,
                 );
             }
-            "--retain-elite" => retain_elite = Some(true),
-            "--no-retain-elite" => retain_elite = Some(false),
+            "--elite-size" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --elite-size".to_string())?;
+                elite_size = Some(
+                    value
+                        .parse::<usize>()
+                        .map_err(|_| "Elite size must be a positive integer".to_string())?,
+                );
+            }
             "--emit-json" => {
                 emit_json =
                     Some(PathBuf::from(args.next().ok_or_else(|| {
@@ -319,7 +327,7 @@ fn parse_args() -> Result<CliArgs, String> {
         metrics_path,
         batch_size,
         max_generations,
-        retain_elite,
+        elite_size,
         emit_json,
         stimulus_path,
         state_path,
@@ -336,8 +344,7 @@ Options:
   --stimulus <path>        Associate a stimulus schedule with the candidate
   --batch-size <n>         Override harness batch size (default: 3)
   --max-generations <n>    Override harness archival depth (default: 10)
-  --retain-elite           Retain high performers for future mutation (default: true)
-  --no-retain-elite        Disable elite retention
+  --elite-size <n>         Number of elite candidates to carry over (default: 1)
   --state <path>           Load/save harness state for persistent backlogs
   --emit-json <path>       Persist evaluation output as JSON
   --help                   Show this message"
@@ -353,6 +360,6 @@ struct CliArgs {
     state_path: Option<PathBuf>,
     batch_size: Option<usize>,
     max_generations: Option<u32>,
-    retain_elite: Option<bool>,
+    elite_size: Option<usize>,
     emit_json: Option<PathBuf>,
 }

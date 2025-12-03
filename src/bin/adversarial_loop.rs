@@ -96,8 +96,6 @@ fn run() -> Result<(), String> {
             );
             if let Some(mutation) = &analysis.recommended_mutation {
                 println!("  recommended mutation: {:?}", mutation);
-            } else if harness.config().retain_elite {
-                println!("  no mutation suggested; candidate retained for future iteration");
             } else {
                 println!("  no mutation suggested");
             }
@@ -143,7 +141,7 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
             .map(|harness| {
                                 if args.batch_size.is_some()
                                     || args.max_generations.is_some()
-                                    || args.retain_elite.is_some()
+                                    || args.elite_size.is_some()
                                     || args.crossover_rate.is_some()
                                     || args.mutation_strategy.is_some()
                                 {
@@ -159,8 +157,8 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
                         if let Some(max_gen) = args.max_generations {
                             config.max_generations = max_gen;
                         }
-                        if let Some(retain) = args.retain_elite {
-                            config.retain_elite = retain;
+                        if let Some(size) = args.elite_size {
+                            config.elite_size = size;
                         }
                         if let Some(rate) = args.crossover_rate {
                             config.crossover_rate = rate;
@@ -179,8 +177,8 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
                         }
                 
                         println!(
-                            "[info] Initialising new harness with batch_size={} max_generations={} retain_elite={} crossover_rate={} mutation_strategy={:?} adaptive_mutation={}",
-                            config.batch_size, config.max_generations, config.retain_elite, config.crossover_rate, config.mutation_strategy, config.adaptive_mutation
+                            "[info] Initialising new harness with batch_size={} max_generations={} elite_size={} crossover_rate={} mutation_strategy={:?} adaptive_mutation={}",
+                            config.batch_size, config.max_generations, config.elite_size, config.crossover_rate, config.mutation_strategy, config.adaptive_mutation
                         );
                         Ok(AdversarialHarness::new(config))
                     }
@@ -378,7 +376,7 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut artifact_dir: PathBuf = PathBuf::from("target/adversarial_runs");
     let mut batch_size: Option<usize> = None;
     let mut max_generations: Option<u32> = None;
-    let mut retain_elite: Option<bool> = None;
+    let mut elite_size: Option<usize> = None;
     let mut seeds: Vec<SeedCandidate> = Vec::new();
     let mut stimulus_path: Option<PathBuf> = None;
     let mut crossover_rate: Option<f32> = None;
@@ -426,11 +424,15 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Max generations must be a positive integer".to_string())?,
                 );
             }
-            "--retain-elite" => {
-                retain_elite = Some(true);
-            }
-            "--no-retain-elite" => {
-                retain_elite = Some(false);
+            "--elite-size" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --elite-size".to_string())?;
+                elite_size = Some(
+                    value
+                        .parse::<usize>()
+                        .map_err(|_| "Elite size must be a positive integer".to_string())?,
+                );
             }
             "--seed" => {
                 let value = args
@@ -478,7 +480,7 @@ fn parse_args() -> Result<CliArgs, String> {
         artifact_dir,
         batch_size,
         max_generations,
-        retain_elite,
+        elite_size,
         seeds,
         stimulus_path,
         crossover_rate,
@@ -495,8 +497,7 @@ Options:
   --artifact-dir <path>    Directory for telemetry and metrics outputs (default: target/adversarial_runs)
   --batch-size <n>         Override batch size when creating a new harness
   --max-generations <n>    Override archival depth when creating a new harness
-  --retain-elite           Retain elite candidates for future mutation (new harness only)
-  --no-retain-elite        Disable elite retention (new harness only)
+  --elite-size <n>         Number of elite candidates to carry over (default: 1)
   --seed <id>=<scenario>   Enqueue a seed scenario (can repeat)
   --stimulus <path>        Stimulus schedule JSONL applied to each run
   --crossover-rate <f32>   The probability of performing crossover (0.0 to 1.0)
@@ -511,7 +512,7 @@ struct CliArgs {
     artifact_dir: PathBuf,
     batch_size: Option<usize>,
     max_generations: Option<u32>,
-    retain_elite: Option<bool>,
+    elite_size: Option<usize>,
     seeds: Vec<SeedCandidate>,
     stimulus_path: Option<PathBuf>,
     crossover_rate: Option<f32>,

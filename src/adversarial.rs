@@ -70,8 +70,8 @@ pub struct EvolutionConfig {
     pub batch_size: usize,
     /// Maximum generations to retain when archiving outcomes.
     pub max_generations: u32,
-    /// Whether to requeue high-performing candidates for mutation.
-    pub retain_elite: bool,
+    /// The number of elite candidates to carry over to the next generation.
+    pub elite_size: usize,
     /// The probability of performing crossover (0.0 to 1.0).
     pub crossover_rate: f32,
     /// The selection strategy to use for breeding new candidates.
@@ -100,7 +100,7 @@ impl EvolutionConfig {
         Self {
             batch_size: 3,
             max_generations: 10,
-            retain_elite: true,
+            elite_size: 1,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
             crossover_strategy: CrossoverStrategy::TwoPoint,
@@ -534,7 +534,26 @@ impl AdversarialHarness {
             let num_new_candidates = self.config.batch_size; // Generate a new batch size worth of candidates
             let mut rng = rand::thread_rng();
 
-            for _ in 0..num_new_candidates {
+            let mut new_candidates = Vec::new();
+
+            // 1. Preserve elites
+            let elite_size = self.config.elite_size.min(self.archive.len());
+            if elite_size > 0 {
+                let mut sorted_archive = self.archive.clone();
+                sorted_archive.sort_by(|a, b| b.fitness_score.partial_cmp(&a.fitness_score).unwrap_or(std::cmp::Ordering::Equal));
+                for elite_outcome in sorted_archive.iter().take(elite_size) {
+                    let mut elite_candidate = elite_outcome.candidate.clone();
+                    elite_candidate.generation = gen_idx as u32 + 1;
+                    elite_candidate.parent_id = Some(elite_outcome.candidate.id.clone());
+                    elite_candidate.mutation = None; // Elites are not mutated
+                    elite_candidate.refinement_active_for = self.config.refinement_period;
+                    new_candidates.push(elite_candidate);
+                }
+            }
+
+            // 2. Generate the rest of the population
+            let num_to_generate = num_new_candidates.saturating_sub(new_candidates.len());
+            for _ in 0..num_to_generate {
                 let new_candidate = if rng.gen_range(0.0..1.0) < self.config.crossover_rate {
                     // Perform crossover
                     let parent1 = match self.config.selection_strategy {
@@ -604,7 +623,11 @@ impl AdversarialHarness {
                         refinement_active_for,
                     }
                 };
-                self.enqueue(new_candidate);
+                new_candidates.push(new_candidate);
+            }
+
+            for candidate in new_candidates {
+                self.enqueue(candidate);
             }
             println!("[info] Enqueued {} new candidates for next generation.", num_new_candidates);
         }
@@ -620,13 +643,6 @@ impl AdversarialHarness {
             .rev()
             .take(limit)
             .collect::<Vec<&AttackOutcome>>()
-    }
-
-    /// Requeue a candidate for additional mutations when elite retention is enabled.
-    pub fn maybe_requeue(&mut self, candidate: AttackCandidate) {
-        if self.config.retain_elite {
-            self.backlog.push_back(candidate);
-        }
     }
 
     fn finalize_evaluation(
@@ -662,7 +678,7 @@ impl AdversarialHarness {
 
         if let Some(mutant) = &next_candidate {
             self.enqueue(mutant.clone());
-        } // Removed the else if self.config.retain_elite { ... } block here.
+        }
 
         (outcome, next_candidate, analysis)
     }
@@ -1641,37 +1657,37 @@ mod tests {
 
     #[test]
 
-    fn retain_elite_requeues_elite_candidates() {
+        fn elitism_carries_over_elite_candidates() {
 
-                let mut harness = AdversarialHarness::new(EvolutionConfig {
+            let mut harness = AdversarialHarness::new(EvolutionConfig {
 
-                    batch_size: 1,
+                batch_size: 1,
 
-                    max_generations: 5,
+                max_generations: 5,
 
-                    retain_elite: true,
+                elite_size: 1,
 
-                    crossover_rate: 0.7,
+                crossover_rate: 0.7,
 
-                    selection_strategy: SelectionStrategy::Tournament { size: 3 },
+                selection_strategy: SelectionStrategy::Tournament { size: 3 },
 
-                    crossover_strategy: CrossoverStrategy::Uniform,
+                crossover_strategy: CrossoverStrategy::Uniform,
 
-                    mutation_strategy: MutationStrategy::Random,
+                mutation_strategy: MutationStrategy::Random,
 
-                    mutation_rate: 0.8,
+                mutation_rate: 0.8,
 
-                    mutation_strength: 1.5,
+                mutation_strength: 1.5,
 
-                    adaptive_mutation: false,
+                adaptive_mutation: false,
 
-                    refinement_period: 3,
+                refinement_period: 3,
 
-                    adaptive_mutation_stagnation_threshold: 3,
+                adaptive_mutation_stagnation_threshold: 3,
 
-                    refinement_mutation_strength_factor: 0.5,
+                refinement_mutation_strength_factor: 0.5,
 
-                });
+            });
 
 
 
@@ -1785,35 +1801,35 @@ mod tests {
 
     fn next_batch_respects_batch_size() {
 
-                let mut harness = AdversarialHarness::new(EvolutionConfig {
+                        let mut harness = AdversarialHarness::new(EvolutionConfig {
 
-                    batch_size: 2,
+                            batch_size: 2,
 
-                    max_generations: 5,
+                            max_generations: 5,
 
-                    retain_elite: false,
+                            elite_size: 0,
 
-                    crossover_rate: 0.7,
+                            crossover_rate: 0.7,
 
-                    selection_strategy: SelectionStrategy::Tournament { size: 3 },
+                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
 
-                    crossover_strategy: CrossoverStrategy::Uniform,
+                            crossover_strategy: CrossoverStrategy::Uniform,
 
-                    mutation_strategy: MutationStrategy::Random,
+                            mutation_strategy: MutationStrategy::Random,
 
-                    mutation_rate: 0.8,
+                            mutation_rate: 0.8,
 
-                    mutation_strength: 1.5,
+                            mutation_strength: 1.5,
 
-                    adaptive_mutation: false,
+                            adaptive_mutation: false,
 
-                    refinement_period: 3,
+                            refinement_period: 3,
 
-                    adaptive_mutation_stagnation_threshold: 3,
+                            adaptive_mutation_stagnation_threshold: 3,
 
-                    refinement_mutation_strength_factor: 0.5,
+                            refinement_mutation_strength_factor: 0.5,
 
-                });
+                        });
 
 
 
@@ -2099,63 +2115,63 @@ mod tests {
 
 
 
-                let mut harness = AdversarialHarness::new(EvolutionConfig {
+                        let mut harness = AdversarialHarness::new(EvolutionConfig {
 
 
 
-                    batch_size: 1,
+                            batch_size: 1,
 
 
 
-                    max_generations: 3,
+                            max_generations: 3,
 
 
 
-                    retain_elite: false,
+                            elite_size: 0,
 
 
 
-                    crossover_rate: 0.7,
+                            crossover_rate: 0.7,
 
 
 
-                    selection_strategy: SelectionStrategy::Tournament { size: 3 },
+                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
 
 
 
-                    crossover_strategy: CrossoverStrategy::Uniform,
+                            crossover_strategy: CrossoverStrategy::Uniform,
 
 
 
-                    mutation_strategy: MutationStrategy::Random,
+                            mutation_strategy: MutationStrategy::Random,
 
 
 
-                    mutation_rate: 0.8,
+                            mutation_rate: 0.8,
 
 
 
-                    mutation_strength: 1.5,
+                            mutation_strength: 1.5,
 
 
 
-                    adaptive_mutation: false,
+                            adaptive_mutation: false,
 
 
 
-                    refinement_period: 3,
+                            refinement_period: 3,
 
 
 
-                    adaptive_mutation_stagnation_threshold: 3,
+                            adaptive_mutation_stagnation_threshold: 3,
 
 
 
-                    refinement_mutation_strength_factor: 0.5,
+                            refinement_mutation_strength_factor: 0.5,
 
 
 
-                });
+                        });
 
 
 
@@ -2239,35 +2255,35 @@ mod tests {
 
     fn harness_state_roundtrip_persists_archive() {
 
-                let mut harness = AdversarialHarness::new(EvolutionConfig {
+                        let mut harness = AdversarialHarness::new(EvolutionConfig {
 
-                    batch_size: 1,
+                            batch_size: 1,
 
-                    max_generations: 4,
+                            max_generations: 4,
 
-                    retain_elite: true,
+                            elite_size: 1,
 
-                    crossover_rate: 0.7,
+                            crossover_rate: 0.7,
 
-                    selection_strategy: SelectionStrategy::Tournament { size: 3 },
+                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
 
-                    crossover_strategy: CrossoverStrategy::Uniform,
+                            crossover_strategy: CrossoverStrategy::Uniform,
 
-                    mutation_strategy: MutationStrategy::Random,
+                            mutation_strategy: MutationStrategy::Random,
 
-                    mutation_rate: 0.8,
+                            mutation_rate: 0.8,
 
-                    mutation_strength: 1.5,
+                            mutation_strength: 1.5,
 
-                    adaptive_mutation: false,
+                            adaptive_mutation: false,
 
-                    refinement_period: 3,
+                            refinement_period: 3,
 
-                    adaptive_mutation_stagnation_threshold: 3,
+                            adaptive_mutation_stagnation_threshold: 3,
 
-                    refinement_mutation_strength_factor: 0.5,
+                            refinement_mutation_strength_factor: 0.5,
 
-                });
+                        });
 
 
 
@@ -2377,35 +2393,35 @@ mod tests {
 
     fn run_generations_executes_batches() {
 
-                let mut harness = AdversarialHarness::new(EvolutionConfig {
+                        let mut harness = AdversarialHarness::new(EvolutionConfig {
 
-                    batch_size: 1,
+                            batch_size: 1,
 
-                    max_generations: 5,
+                            max_generations: 5,
 
-                    retain_elite: false,
+                            elite_size: 0,
 
-                    crossover_rate: 0.7,
+                            crossover_rate: 0.7,
 
-                    selection_strategy: SelectionStrategy::Tournament { size: 3 },
+                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
 
-                    crossover_strategy: CrossoverStrategy::Uniform,
+                            crossover_strategy: CrossoverStrategy::Uniform,
 
-                    mutation_strategy: MutationStrategy::Random,
+                            mutation_strategy: MutationStrategy::Random,
 
-                    mutation_rate: 0.8,
+                            mutation_rate: 0.8,
 
-                    mutation_strength: 1.5,
+                            mutation_strength: 1.5,
 
-                    adaptive_mutation: false,
+                            adaptive_mutation: false,
 
-                    refinement_period: 3,
+                            refinement_period: 3,
 
-                    adaptive_mutation_stagnation_threshold: 3,
+                            adaptive_mutation_stagnation_threshold: 3,
 
-                    refinement_mutation_strength_factor: 0.5,
+                            refinement_mutation_strength_factor: 0.5,
 
-                });
+                        });
 
 
 
@@ -2543,35 +2559,35 @@ mod tests {
 
     fn archive_prunes_to_configured_limit() {
 
-                let mut harness = AdversarialHarness::new(EvolutionConfig {
+                        let mut harness = AdversarialHarness::new(EvolutionConfig {
 
-                    batch_size: 1,
+                            batch_size: 1,
 
-                    max_generations: 2,
+                            max_generations: 2,
 
-                    retain_elite: false,
+                            elite_size: 0,
 
-                    crossover_rate: 0.7,
+                            crossover_rate: 0.7,
 
-                    selection_strategy: SelectionStrategy::Tournament { size: 3 },
+                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
 
-                    crossover_strategy: CrossoverStrategy::Uniform,
+                            crossover_strategy: CrossoverStrategy::Uniform,
 
-                    mutation_strategy: MutationStrategy::Random,
+                            mutation_strategy: MutationStrategy::Random,
 
-                    mutation_rate: 0.8,
+                            mutation_rate: 0.8,
 
-                    mutation_strength: 1.5,
+                            mutation_strength: 1.5,
 
-                    adaptive_mutation: false,
+                            adaptive_mutation: false,
 
-                    refinement_period: 3,
+                            refinement_period: 3,
 
-                    adaptive_mutation_stagnation_threshold: 3,
+                            adaptive_mutation_stagnation_threshold: 3,
 
-                    refinement_mutation_strength_factor: 0.5,
+                            refinement_mutation_strength_factor: 0.5,
 
-                });
+                        });
 
 
 
@@ -2659,35 +2675,35 @@ mod tests {
 
     fn archive_clears_when_limit_zero() {
 
-                let mut harness = AdversarialHarness::new(EvolutionConfig {
+                        let mut harness = AdversarialHarness::new(EvolutionConfig {
 
-                    batch_size: 1,
+                            batch_size: 1,
 
-                    max_generations: 0,
+                            max_generations: 0,
 
-                    retain_elite: false,
+                            elite_size: 0,
 
-                    crossover_rate: 0.7,
+                            crossover_rate: 0.7,
 
-                    selection_strategy: SelectionStrategy::Tournament { size: 3 },
+                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
 
-                    crossover_strategy: CrossoverStrategy::Uniform,
+                            crossover_strategy: CrossoverStrategy::Uniform,
 
-                    mutation_strategy: MutationStrategy::Random,
+                            mutation_strategy: MutationStrategy::Random,
 
-                    mutation_rate: 0.8,
+                            mutation_rate: 0.8,
 
-                    mutation_strength: 1.5,
+                            mutation_strength: 1.5,
 
-                    adaptive_mutation: false,
+                            adaptive_mutation: false,
 
-                    refinement_period: 3,
+                            refinement_period: 3,
 
-                    adaptive_mutation_stagnation_threshold: 3,
+                            adaptive_mutation_stagnation_threshold: 3,
 
-                    refinement_mutation_strength_factor: 0.5,
+                            refinement_mutation_strength_factor: 0.5,
 
-                });
+                        });
 
 
 
