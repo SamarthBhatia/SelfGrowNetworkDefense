@@ -422,10 +422,12 @@ impl AdversarialHarness {
     /// Persist an execution outcome for downstream analytics.
     pub fn record_outcome(&mut self, outcome: AttackOutcome) {
         if let Some(parent_id) = &outcome.candidate.parent_id {
+            println!("[DEBUG] Before update: lineage_fitness_history for {} = {:?}", parent_id, self.lineage_fitness_history.get(parent_id));
             self.lineage_fitness_history
                 .entry(parent_id.clone())
                 .or_default()
                 .push(outcome.fitness_score);
+            println!("[DEBUG] After update: lineage_fitness_history for {} = {:?}", parent_id, self.lineage_fitness_history.get(parent_id));
         }
 
         self.archive.push(outcome);

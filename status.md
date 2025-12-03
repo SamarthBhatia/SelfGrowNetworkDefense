@@ -86,6 +86,18 @@ testbed.
 - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-02 — Session 45
+- **Focus**: Fix bug in `record_outcome` that was preventing `lineage_fitness_history` from being updated correctly.
+- **Actions**:
+    - Added debugging statements to `record_outcome` to diagnose the issue.
+    - Discovered that the `parent_id` was not being correctly extracted from the `AttackCandidate`.
+    - Corrected the logic to ensure that the `lineage_fitness_history` is properly updated for each lineage.
+    - Verified the fix by running a single-generation test and observing the correct debugging output.
+- **Open Questions**:
+    - Now that the logging is fixed, will the plot show a clearer picture of the strategies' performance?
+- **Next Session Starting Point**:
+    - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
+
 ### 2025-12-02 — Session 44
 - **Focus**: Implement a hybrid "Explorer-Exploiter" strategy.
 - **Actions**:
