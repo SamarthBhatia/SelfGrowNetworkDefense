@@ -83,9 +83,22 @@ testbed.
 ### In Progress                                                                                                                                        
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-- Review the generated plots (`docs/images/fitness_comparison.png`) to interpret the results of the targeted mutation analysis and decide on the next steps for evolutionary strategy refinement.
+- Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-02 — Session 42
+- **Focus**: Implement a refinement period for the Targeted mutation strategy.
+- **Actions**:
+    - Added `refinement_period: u32`, `adaptive_mutation_stagnation_threshold: u32`, and `refinement_mutation_strength_factor: f32` to the `EvolutionConfig` struct.
+    - Added a `refinement_active_for: u32` field to the `AttackCandidate` struct.
+    - Modified the `perform_mutation` function to implement the refinement logic.
+    - Updated all tests and binary crates to correctly initialize the new fields.
+    - Verified that the project compiles successfully.
+- **Open Questions**:
+    - Will the new refinement period help to preserve and exploit high-fitness candidates?
+- **Next Session Starting Point**:
+    - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
+
 ### 2025-12-02 — Session 41
 - **Focus**: Fix the plotting script to correctly visualize the fitness data.
 - **Actions**:

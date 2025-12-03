@@ -73,6 +73,7 @@ fn run() -> Result<(), String> {
         generation: args.generation,
         parent_id: None,
         mutation: None,
+        refinement_active_for: 0,
     };
 
     let (outcome, maybe_mutation, analysis) =

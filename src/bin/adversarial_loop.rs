@@ -38,6 +38,7 @@ fn run() -> Result<(), String> {
                 generation: 0,
                 parent_id: None,
                 mutation: None,
+                refinement_active_for: 0,
             });
         }
         println!(
