@@ -83,9 +83,21 @@ testbed.
 ### In Progress                                                                                                                                        
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-- Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
+- Await user feedback after they have reviewed the generated plot at `docs/images/fitness_comparison.png`.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-02 — Session 46
+- **Focus**: Re-run analysis with the new hybrid strategy and elitism.
+- **Actions**:
+    - Re-ran the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy.
+    - Updated the `scripts/show_analysis_plots.py` to correctly load the data from `lineage_fitness_history` and save the plot.
+    - Committed the new plot to the repository.
+    - Reverted the changes to `scripts/show_analysis_plots.py`.
+- **Open Questions**:
+    - Will the new hybrid strategy with elitism finally show a clear improvement over the random strategy?
+- **Next Session Starting Point**:
+    - Await user feedback after they have reviewed the generated plot at `docs/images/fitness_comparison.png`.
+
 ### 2025-12-02 — Session 45
 - **Focus**: Fix bug in `record_outcome` that was preventing `lineage_fitness_history` from being updated correctly.
 - **Actions**:
