@@ -144,6 +144,7 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
                                     || args.elite_size.is_some()
                                     || args.crossover_rate.is_some()
                                     || args.mutation_strategy.is_some()
+                                    || args.exploration_generations.is_some()
                                 {
                                     println!("[info] Existing harness loaded; configuration overrides ignored.");
                                 }
@@ -166,6 +167,9 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
                         if let Some(strategy) = &args.mutation_strategy {
                             config.mutation_strategy = strategy.clone();
                         }
+                        if let Some(generations) = args.exploration_generations {
+                            config.exploration_generations = generations;
+                        }
                 
                         // Environment variable override for adaptive mutation
                         if let Ok(val) = env::var("ADAPTIVE_MUTATION_FLAG") {
@@ -177,8 +181,8 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
                         }
                 
                         println!(
-                            "[info] Initialising new harness with batch_size={} max_generations={} elite_size={} crossover_rate={} mutation_strategy={:?} adaptive_mutation={}",
-                            config.batch_size, config.max_generations, config.elite_size, config.crossover_rate, config.mutation_strategy, config.adaptive_mutation
+                            "[info] Initialising new harness with batch_size={} max_generations={} elite_size={} crossover_rate={} mutation_strategy={:?} adaptive_mutation={} exploration_generations={}",
+                            config.batch_size, config.max_generations, config.elite_size, config.crossover_rate, config.mutation_strategy, config.adaptive_mutation, config.exploration_generations
                         );
                         Ok(AdversarialHarness::new(config))
                     }
@@ -381,6 +385,7 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut stimulus_path: Option<PathBuf> = None;
     let mut crossover_rate: Option<f32> = None;
     let mut mutation_strategy: Option<MutationStrategy> = None;
+    let mut exploration_generations: Option<u32> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -465,6 +470,16 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Invalid mutation strategy".to_string())?,
                 );
             }
+            "--exploration-generations" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --exploration-generations".to_string())?;
+                exploration_generations = Some(
+                    value
+                        .parse::<u32>()
+                        .map_err(|_| "Exploration generations must be a positive integer".to_string())?,
+                );
+            }
             unknown => {
                 return Err(format!("Unknown argument `{unknown}`"));
             }
@@ -485,6 +500,7 @@ fn parse_args() -> Result<CliArgs, String> {
         stimulus_path,
         crossover_rate,
         mutation_strategy,
+        exploration_generations,
     })
 }
 
@@ -498,6 +514,7 @@ Options:
   --batch-size <n>         Override batch size when creating a new harness
   --max-generations <n>    Override archival depth when creating a new harness
   --elite-size <n>         Number of elite candidates to carry over (default: 1)
+  --exploration-generations <n> Number of initial generations for exploration (default: 3)
   --seed <id>=<scenario>   Enqueue a seed scenario (can repeat)
   --stimulus <path>        Stimulus schedule JSONL applied to each run
   --crossover-rate <f32>   The probability of performing crossover (0.0 to 1.0)
@@ -517,6 +534,7 @@ struct CliArgs {
     stimulus_path: Option<PathBuf>,
     crossover_rate: Option<f32>,
     mutation_strategy: Option<MutationStrategy>,
+    exploration_generations: Option<u32>,
 }
 
 struct SeedCandidate {

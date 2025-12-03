@@ -33,6 +33,9 @@ fn run() -> Result<(), String> {
     if let Some(elite_size) = args.elite_size {
         config.elite_size = elite_size;
     }
+    if let Some(exploration_generations) = args.exploration_generations {
+        config.exploration_generations = exploration_generations;
+    }
 
     let mut harness = if let Some(state_path) = args.state_path.as_ref() {
         if state_path.exists() {
@@ -45,17 +48,19 @@ fn run() -> Result<(), String> {
             if args.batch_size.is_some()
                 || args.max_generations.is_some()
                 || args.elite_size.is_some()
+                || args.exploration_generations.is_some()
             {
                 println!("[info] Loaded existing harness; configuration overrides ignored.");
             }
             harness
         } else {
             println!(
-                "[info] Initialising new harness state at {} (batch_size={}, max_generations={}, elite_size={})",
+                "[info] Initialising new harness state at {} (batch_size={}, max_generations={}, elite_size={}, exploration_generations={})",
                 state_path.display(),
                 config.batch_size,
                 config.max_generations,
-                config.elite_size
+                config.elite_size,
+                config.exploration_generations
             );
             AdversarialHarness::new(config.clone())
         }
@@ -230,6 +235,7 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut elite_size: Option<usize> = None;
     let mut emit_json: Option<PathBuf> = None;
     let mut state_path: Option<PathBuf> = None;
+    let mut exploration_generations: Option<u32> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -295,6 +301,16 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Elite size must be a positive integer".to_string())?,
                 );
             }
+            "--exploration-generations" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --exploration-generations".to_string())?;
+                exploration_generations = Some(
+                    value
+                        .parse::<u32>()
+                        .map_err(|_| "Exploration generations must be a positive integer".to_string())?,
+                );
+            }
             "--emit-json" => {
                 emit_json =
                     Some(PathBuf::from(args.next().ok_or_else(|| {
@@ -331,6 +347,7 @@ fn parse_args() -> Result<CliArgs, String> {
         emit_json,
         stimulus_path,
         state_path,
+        exploration_generations,
     })
 }
 
@@ -345,6 +362,7 @@ Options:
   --batch-size <n>         Override harness batch size (default: 3)
   --max-generations <n>    Override harness archival depth (default: 10)
   --elite-size <n>         Number of elite candidates to carry over (default: 1)
+  --exploration-generations <n> Number of initial generations for exploration (default: 3)
   --state <path>           Load/save harness state for persistent backlogs
   --emit-json <path>       Persist evaluation output as JSON
   --help                   Show this message"
@@ -362,4 +380,5 @@ struct CliArgs {
     max_generations: Option<u32>,
     elite_size: Option<usize>,
     emit_json: Option<PathBuf>,
+    exploration_generations: Option<u32>,
 }

@@ -86,6 +86,18 @@ testbed.
 - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-02 — Session 44
+- **Focus**: Implement a hybrid "Explorer-Exploiter" strategy.
+- **Actions**:
+    - Added an `exploration_generations: u32` field to `EvolutionConfig` to control the number of initial generations for exploration.
+    - Modified the `run_generations` function to use the `Random` mutation strategy during the exploration phase and switch to the `Targeted` strategy for the exploitation phase.
+    - Updated all tests and binary crates to correctly initialize the new `exploration_generations` field.
+    - Verified that the project compiles successfully.
+- **Open Questions**:
+    - Will the new hybrid strategy provide a better balance between exploration and exploitation?
+- **Next Session Starting Point**:
+    - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
+
 ### 2025-12-02 — Session 43
 - **Focus**: Implement true elitism to preserve high-fitness candidates.
 - **Actions**:
