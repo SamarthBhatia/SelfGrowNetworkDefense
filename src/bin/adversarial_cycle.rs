@@ -30,12 +30,12 @@ fn run() -> Result<(), String> {
     if let Some(max_generations) = args.max_generations {
         config.max_generations = max_generations;
     }
-    if let Some(elite_size) = args.elite_size {
-        config.elite_size = elite_size;
-    }
-    if let Some(exploration_generations) = args.exploration_generations {
-        config.exploration_generations = exploration_generations;
-    }
+    // if let Some(elite_size) = args.elite_size {
+    //     config.elite_size = elite_size;
+    // }
+    // if let Some(exploration_generations) = args.exploration_generations {
+    //     config.exploration_generations = exploration_generations;
+    // }
 
     let mut harness = if let Some(state_path) = args.state_path.as_ref() {
         if state_path.exists() {
@@ -47,20 +47,20 @@ fn run() -> Result<(), String> {
             })?;
             if args.batch_size.is_some()
                 || args.max_generations.is_some()
-                || args.elite_size.is_some()
-                || args.exploration_generations.is_some()
+                // || args.elite_size.is_some()
+                // || args.exploration_generations.is_some()
             {
                 println!("[info] Loaded existing harness; configuration overrides ignored.");
             }
             harness
         } else {
             println!(
-                "[info] Initialising new harness state at {} (batch_size={}, max_generations={}, elite_size={}, exploration_generations={})",
+                "[info] Initialising new harness state at {} (batch_size={}, max_generations={})",
                 state_path.display(),
                 config.batch_size,
                 config.max_generations,
-                config.elite_size,
-                config.exploration_generations
+                // config.elite_size,
+                // config.exploration_generations
             );
             AdversarialHarness::new(config.clone())
         }
@@ -78,7 +78,7 @@ fn run() -> Result<(), String> {
         generation: args.generation,
         parent_id: None,
         mutation: None,
-        refinement_active_for: 0,
+        // refinement_active_for: 0,
     };
 
     let (outcome, maybe_mutation, analysis) =
@@ -232,10 +232,8 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut stimulus_path: Option<PathBuf> = None;
     let mut batch_size: Option<usize> = None;
     let mut max_generations: Option<u32> = None;
-    let mut elite_size: Option<usize> = None;
     let mut emit_json: Option<PathBuf> = None;
     let mut state_path: Option<PathBuf> = None;
-    let mut exploration_generations: Option<u32> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -291,26 +289,6 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Max generations must be a positive integer".to_string())?,
                 );
             }
-            "--elite-size" => {
-                let value = args
-                    .next()
-                    .ok_or_else(|| "Missing value for --elite-size".to_string())?;
-                elite_size = Some(
-                    value
-                        .parse::<usize>()
-                        .map_err(|_| "Elite size must be a positive integer".to_string())?,
-                );
-            }
-            "--exploration-generations" => {
-                let value = args
-                    .next()
-                    .ok_or_else(|| "Missing value for --exploration-generations".to_string())?;
-                exploration_generations = Some(
-                    value
-                        .parse::<u32>()
-                        .map_err(|_| "Exploration generations must be a positive integer".to_string())?,
-                );
-            }
             "--emit-json" => {
                 emit_json =
                     Some(PathBuf::from(args.next().ok_or_else(|| {
@@ -343,11 +321,9 @@ fn parse_args() -> Result<CliArgs, String> {
         metrics_path,
         batch_size,
         max_generations,
-        elite_size,
         emit_json,
         stimulus_path,
         state_path,
-        exploration_generations,
     })
 }
 
@@ -378,7 +354,5 @@ struct CliArgs {
     state_path: Option<PathBuf>,
     batch_size: Option<usize>,
     max_generations: Option<u32>,
-    elite_size: Option<usize>,
     emit_json: Option<PathBuf>,
-    exploration_generations: Option<u32>,
 }

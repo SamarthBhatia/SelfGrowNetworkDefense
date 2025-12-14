@@ -35,33 +35,14 @@ pub enum SelectionStrategy {
 pub enum CrossoverStrategy {
     /// Each stimulus command is chosen from one of the parents at random.
     Uniform,
-    /// Two-point crossover.
-    TwoPoint,
 }
-
-use std::str::FromStr;
 
 /// The strategy used for mutation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MutationStrategy {
     /// A random mutation is chosen from a predefined set.
     Random,
-    /// A targeted mutation is chosen based on lineage analysis.
-    Targeted,
 }
-
-impl FromStr for MutationStrategy {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "Random" => Ok(MutationStrategy::Random),
-            "Targeted" => Ok(MutationStrategy::Targeted),
-            _ => Err(()),
-        }
-    }
-}
-
 
 /// Configuration knobs for the evolution harness.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,8 +51,8 @@ pub struct EvolutionConfig {
     pub batch_size: usize,
     /// Maximum generations to retain when archiving outcomes.
     pub max_generations: u32,
-    /// The number of elite candidates to carry over to the next generation.
-    pub elite_size: usize,
+    /// Whether to requeue high-performing candidates for mutation.
+    pub retain_elite: bool,
     /// The probability of performing crossover (0.0 to 1.0).
     pub crossover_rate: f32,
     /// The selection strategy to use for breeding new candidates.
@@ -80,24 +61,6 @@ pub struct EvolutionConfig {
     pub crossover_strategy: CrossoverStrategy,
     /// The mutation strategy to use for breeding new candidates.
     pub mutation_strategy: MutationStrategy,
-    /// The probability of performing mutation (0.0 to 1.0).
-    pub mutation_rate: f32,
-    /// The strength of the mutation.
-    pub mutation_strength: f32,
-    /// Whether to use adaptive mutation.
-    pub adaptive_mutation: bool,
-    /// The number of generations to apply refinement mutations after a high-fitness candidate is found.
-    pub refinement_period: u32,
-    /// The number of generations of stagnation before adaptive mutation is triggered.
-    pub adaptive_mutation_stagnation_threshold: u32,
-    /// The factor by which to reduce mutation strength during refinement.
-    pub refinement_mutation_strength_factor: f32,
-    /// The number of initial generations to run in exploration mode (using Random mutation).
-    pub exploration_generations: u32,
-    /// The proportion of new candidates to generate randomly.
-    pub new_candidate_rate: f32,
-    /// The proportion of the new population to generate using the exploration strategy.
-    pub exploration_rate: f32,
 }
 
 impl EvolutionConfig {
@@ -106,20 +69,11 @@ impl EvolutionConfig {
         Self {
             batch_size: 3,
             max_generations: 10,
-            elite_size: 0,
+            retain_elite: true,
             crossover_rate: 0.7,
             selection_strategy: SelectionStrategy::Tournament { size: 3 },
-            crossover_strategy: CrossoverStrategy::TwoPoint,
-            mutation_strategy: MutationStrategy::Targeted,
-            mutation_rate: 0.8,
-            mutation_strength: 1.5,
-            adaptive_mutation: false,
-            refinement_period: 3,
-            adaptive_mutation_stagnation_threshold: 3,
-            refinement_mutation_strength_factor: 0.5,
-            exploration_generations: 3,
-            new_candidate_rate: 0.1,
-            exploration_rate: 0.5,
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
         }
     }
 }
@@ -131,55 +85,15 @@ pub enum Mutation {
     DecreaseStimulus { topic: String, factor: f32 },
     AddSpike { step: u32, intensity: f32 },
     ChangeEventTiming { event_index: usize, new_step: u32 },
-    SwapStimulus { event_index1: usize, event_index2: usize },
-    RemoveStimulus { event_index: usize },
     ChangeThreatSpike { event_index: usize, new_step: u32, new_intensity: f32 },
     ChangeReproductionRate { factor: f32 },
-    ShiftStimulusTime { event_index: usize, time_delta: i32 },
     ChangeInitialCellCount { count: usize },
     ChangeThreatProfile { profile: config::ThreatProfile },
     ChangeThreatSpikeTime { spike_index: usize, new_step: u32 },
     ChangeThreatSpikeDuration { spike_index: usize, new_duration: u32 },
-}
-
-/// State for adaptive mutation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdaptiveMutation {
-    pub fitness_history: Vec<f32>,
-    pub stagnation_counter: u32,
-}
-
-impl AdaptiveMutation {
-    pub fn new() -> Self {
-        Self {
-            fitness_history: Vec::new(),
-            stagnation_counter: 0,
-        }
-    }
-
-    pub fn adapt(&mut self, config: &mut EvolutionConfig) {
-        if self.fitness_history.len() < 2 {
-            return;
-        }
-
-        let last_fitness = self.fitness_history.last().unwrap();
-        let prev_fitness = self.fitness_history.get(self.fitness_history.len() - 2).unwrap();
-
-        if last_fitness <= prev_fitness {
-            self.stagnation_counter += 1;
-        } else {
-            self.stagnation_counter = 0;
-        }
-
-        if self.stagnation_counter >= 3 {
-            config.mutation_rate = (config.mutation_rate * 1.2).min(1.0);
-            config.mutation_strength *= 1.2;
-            self.stagnation_counter = 0;
-        } else {
-            config.mutation_rate = (config.mutation_rate * 0.9).max(0.1);
-            config.mutation_strength *= 0.9;
-        }
-    }
+    SwapStimulus { event_index1: usize, event_index2: usize },
+    RemoveStimulus { event_index: usize },
+    ShiftStimulusTime { event_index: usize, time_delta: i32 },
 }
 
 /// Description of an attack scenario candidate scheduled for execution.
@@ -197,9 +111,6 @@ pub struct AttackCandidate {
     pub parent_id: Option<String>,
     /// Optional mutation that produced this candidate.
     pub mutation: Option<Mutation>,
-    /// Number of generations for which this candidate's lineage should be refined.
-    #[serde(default)]
-    pub refinement_active_for: u32,
 }
 
 /// Recorded outcome after executing a candidate against the runtime.
@@ -218,7 +129,7 @@ pub struct AttackOutcome {
 }
 
 /// Aggregated statistics derived from dashboard-ready telemetry exports.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunStatistics {
     pub step_count: usize,
     pub avg_threat: f32,
@@ -265,7 +176,6 @@ pub struct HarnessState {
     pub config: EvolutionConfig,
     pub backlog: VecDeque<AttackCandidate>,
     pub archive: Vec<AttackOutcome>,
-    pub lineage_fitness_history: HashMap<String, Vec<f32>>,
 }
 
 /// Execution artifacts captured while running a candidate.
@@ -346,8 +256,6 @@ pub struct AdversarialHarness {
     config: EvolutionConfig,
     backlog: VecDeque<AttackCandidate>,
     archive: Vec<AttackOutcome>,
-    adaptive_mutation: AdaptiveMutation,
-    lineage_fitness_history: HashMap<String, Vec<f32>>,
 }
 
 impl AdversarialHarness {
@@ -357,8 +265,6 @@ impl AdversarialHarness {
             config,
             backlog: VecDeque::new(),
             archive: Vec::new(),
-            adaptive_mutation: AdaptiveMutation::new(),
-            lineage_fitness_history: HashMap::new(),
         }
     }
 
@@ -368,8 +274,6 @@ impl AdversarialHarness {
             config: state.config,
             backlog: state.backlog,
             archive: state.archive,
-            adaptive_mutation: AdaptiveMutation::new(),
-            lineage_fitness_history: state.lineage_fitness_history,
         }
     }
 
@@ -427,13 +331,6 @@ impl AdversarialHarness {
 
     /// Persist an execution outcome for downstream analytics.
     pub fn record_outcome(&mut self, outcome: AttackOutcome) {
-        if let Some(parent_id) = &outcome.candidate.parent_id {
-            self.lineage_fitness_history
-                .entry(parent_id.clone())
-                .or_default()
-                .push(outcome.fitness_score);
-        }
-
         self.archive.push(outcome);
         let limit = self.config.max_generations as usize;
         if limit == 0 {
@@ -521,19 +418,6 @@ impl AdversarialHarness {
             }
             all_evaluations.extend(current_generation_evaluations);
 
-            if self.config.adaptive_mutation {
-                let avg_fitness = self
-                    .archive
-                    .iter()
-                    .map(|o| o.fitness_score)
-                    .sum::<f32>()
-                    / self.archive.len() as f32;
-                self.adaptive_mutation.fitness_history.push(avg_fitness);
-                let mut config = self.config.clone();
-                self.adaptive_mutation.adapt(&mut config);
-                self.config = config;
-            }
-
             // 2. Select parents and generate new candidates for the next generation
             if self.archive.is_empty() {
                 println!("[warn] Archive empty, cannot select parents for next generation.");
@@ -543,26 +427,7 @@ impl AdversarialHarness {
             let num_new_candidates = self.config.batch_size; // Generate a new batch size worth of candidates
             let mut rng = rand::thread_rng();
 
-            let mut new_candidates = Vec::new();
-
-            // 1. Preserve elites
-            let elite_size = self.config.elite_size.min(self.archive.len());
-            if elite_size > 0 {
-                let mut sorted_archive = self.archive.clone();
-                sorted_archive.sort_by(|a, b| b.fitness_score.partial_cmp(&a.fitness_score).unwrap_or(std::cmp::Ordering::Equal));
-                for elite_outcome in sorted_archive.iter().take(elite_size) {
-                    let mut elite_candidate = elite_outcome.candidate.clone();
-                    elite_candidate.generation = gen_idx as u32 + 1;
-                    elite_candidate.parent_id = Some(elite_outcome.candidate.id.clone());
-                    elite_candidate.mutation = None; // Elites are not mutated
-                    elite_candidate.refinement_active_for = self.config.refinement_period;
-                    new_candidates.push(elite_candidate);
-                }
-            }
-
-            // 2. Generate the rest of the population
-            let num_to_generate = num_new_candidates.saturating_sub(new_candidates.len());
-            for _ in 0..num_to_generate {
+            for _ in 0..num_new_candidates {
                 let new_candidate = if rng.gen_range(0.0..1.0) < self.config.crossover_rate {
                     // Perform crossover
                     let parent1 = match self.config.selection_strategy {
@@ -595,39 +460,18 @@ impl AdversarialHarness {
                         SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
                     }.map_err(|e| HarnessError::Custom(format!("Selection failed: {}", e)))?;
 
-                    let new_candidate_id = generate_short_id(&mut rng);
+                    let new_candidate_id = format!("{}-gen{}-mut{}",
+                        parent_outcome.candidate.id,
+                        gen_idx + 1,
+                        rng.gen_range(0..1000)
+                    );
                     
-                    let scenario_config =
-                        config::load_from_path(&parent_outcome.candidate.scenario_ref)?;
-                    let num_threat_spikes = scenario_config.spikes.len();
-
-                    let num_stimulus_events =
-                        if let Some(stimulus_ref) = &parent_outcome.candidate.stimulus_ref {
-                            let stimulus_schedule = StimulusSchedule::load(stimulus_ref)?;
-                            stimulus_schedule.commands.values().flatten().count()
-                        } else {
-                            0
-                        };
-
-                    let mut refinement_active_for = parent_outcome.candidate.refinement_active_for;
-                    
-                    let mutation_strategy = if gen_idx < self.config.exploration_generations as usize {
-                        &MutationStrategy::Random
-                    } else {
-                        &self.config.mutation_strategy
-                    };
-
                     let mutation = perform_mutation(
-                        &self.config,
-                        mutation_strategy,
+                        &self.config.mutation_strategy,
                         &parent_outcome.statistics,
                         parent_outcome.fitness_score,
                         parent_outcome.breach_observed,
                         &mut rng,
-                        num_stimulus_events,
-                        num_threat_spikes,
-                        &self.lineage_fitness_history,
-                        &mut refinement_active_for,
                     );
 
                     AttackCandidate {
@@ -637,14 +481,9 @@ impl AdversarialHarness {
                         generation: gen_idx as u32 + 1,
                         parent_id: Some(parent_outcome.candidate.id.clone()),
                         mutation,
-                        refinement_active_for,
                     }
                 };
-                new_candidates.push(new_candidate);
-            }
-
-            for candidate in new_candidates {
-                self.enqueue(candidate);
+                self.enqueue(new_candidate);
             }
             println!("[info] Enqueued {} new candidates for next generation.", num_new_candidates);
         }
@@ -660,6 +499,13 @@ impl AdversarialHarness {
             .rev()
             .take(limit)
             .collect::<Vec<&AttackOutcome>>()
+    }
+
+    /// Requeue a candidate for additional mutations when elite retention is enabled.
+    pub fn maybe_requeue(&mut self, candidate: AttackCandidate) {
+        if self.config.retain_elite {
+            self.backlog.push_back(candidate);
+        }
     }
 
     fn finalize_evaluation(
@@ -683,19 +529,18 @@ impl AdversarialHarness {
         let next_candidate = recommended_mutation.map(|mutation| {
             let next_generation = candidate.generation + 1;
             AttackCandidate {
-                id: generate_short_id(&mut rand::thread_rng()),
+                id: format!("{}-mut{}", candidate.id, next_generation),
                 scenario_ref: candidate.scenario_ref.clone(),
                 stimulus_ref: candidate.stimulus_ref.clone(),
                 generation: next_generation,
                 parent_id: Some(candidate.id.clone()),
                 mutation: Some(mutation),
-                refinement_active_for: 0,
             }
         });
 
         if let Some(mutant) = &next_candidate {
             self.enqueue(mutant.clone());
-        }
+        } // Removed the else if self.config.retain_elite { ... } block here.
 
         (outcome, next_candidate, analysis)
     }
@@ -705,7 +550,6 @@ impl AdversarialHarness {
             config: self.config.clone(),
             backlog: self.backlog.clone(),
             archive: self.archive.clone(),
-            lineage_fitness_history: self.lineage_fitness_history.clone(),
         }
     }
 }
@@ -866,67 +710,6 @@ fn uniform_crossover_stimulus<R: Rng>(
     StimulusSchedule::new(child_commands, None)
 }
 
-/// Performs a two-point crossover between two stimulus schedules.
-fn two_point_crossover_stimulus<R: Rng>(
-    parent1: &StimulusSchedule,
-    parent2: &StimulusSchedule,
-    rng: &mut R,
-) -> StimulusSchedule {
-    let mut child_commands = BTreeMap::new();
-    let all_steps: Vec<u32> = parent1
-        .commands
-        .keys()
-        .chain(parent2.commands.keys())
-        .copied()
-        .collect::<HashSet<u32>>()
-        .into_iter()
-        .collect();
-    
-    if all_steps.len() < 2 {
-        // Not enough steps for two-point crossover, fallback to uniform
-        return uniform_crossover_stimulus(parent1, parent2, rng);
-    }
-
-    let point1 = rng.gen_range(0..all_steps.len());
-    let point2 = rng.gen_range(0..all_steps.len());
-    let (start, end) = (point1.min(point2), point1.max(point2));
-
-    for &step in &all_steps {
-        let p1_commands = parent1.commands.get(&step);
-        let p2_commands = parent2.commands.get(&step);
-
-        let chosen_commands = if step >= all_steps[start] && step <= all_steps[end] {
-            // Use parent2's commands in the crossover section
-            match (p1_commands, p2_commands) {
-                (_, Some(cmds2)) => Some(cmds2.clone()),
-                (Some(cmds1), _) => Some(cmds1.clone()), // Fallback to parent1
-                _ => None,
-            }
-        } else {
-            // Use parent1's commands outside the crossover section
-            match (p1_commands, p2_commands) {
-                (Some(cmds1), _) => Some(cmds1.clone()),
-                (_, Some(cmds2)) => Some(cmds2.clone()), // Fallback to parent2
-                _ => None,
-            }
-        };
-
-        if let Some(commands) = chosen_commands {
-            child_commands.insert(step, commands);
-        }
-    }
-
-    StimulusSchedule::new(child_commands, None)
-}
-
-
-fn generate_short_id(rng: &mut impl Rng) -> String {
-    rng.sample_iter(&rand::distributions::Alphanumeric)
-        .take(8)
-        .map(char::from)
-        .collect()
-}
-
 /// Performs crossover between two parent outcomes to produce a new child candidate.
 ///
 /// `parent1`: The first parent [`AttackOutcome`].
@@ -944,10 +727,10 @@ pub fn perform_crossover<R: Rng>(
     let child_scenario_ref = parent1.candidate.scenario_ref.clone();
     let child_generation =
         std::cmp::max(parent1.candidate.generation, parent2.candidate.generation) + 1;
-        let child_id = format!(
-            "crossover-{}",
-            generate_short_id(rng),
-        );
+    let child_id = format!(
+        "crossover-{}-{}-gen{}",
+        parent1.candidate.id, parent2.candidate.id, child_generation
+    );
 
     let child_stimulus_ref = match (&parent1.candidate.stimulus_ref, &parent2.candidate.stimulus_ref) {
         (Some(s1), Some(s2)) => {
@@ -957,9 +740,6 @@ pub fn perform_crossover<R: Rng>(
             let child_schedule = match crossover_strategy {
                 CrossoverStrategy::Uniform => {
                     uniform_crossover_stimulus(&p1_schedule, &p2_schedule, rng)
-                }
-                CrossoverStrategy::TwoPoint => {
-                    two_point_crossover_stimulus(&p1_schedule, &p2_schedule, rng)
                 }
             };
 
@@ -997,15 +777,32 @@ pub fn perform_crossover<R: Rng>(
         scenario_ref: child_scenario_ref,
         stimulus_ref: child_stimulus_ref,
         generation: child_generation,
-        parent_id: Some(format!(
-            "{}-{}",
-            parent1.candidate.id.chars().take(4).collect::<String>(),
-            parent2.candidate.id.chars().take(4).collect::<String>()
-        )),
+        parent_id: Some(format!("{},{}", parent1.candidate.id, parent2.candidate.id)),
         mutation,
-        refinement_active_for: 0,
     })
 }
+
+fn perform_mutation<R: Rng>(
+    mutation_strategy: &MutationStrategy,
+    stats: &RunStatistics,
+    fitness_score: f32,
+    breach_observed: bool,
+    rng: &mut R,
+) -> Option<Mutation> {
+    match mutation_strategy {
+        MutationStrategy::Random => {
+            recommend_mutation(stats, fitness_score, breach_observed).or_else(|| {
+                let topics = ["activator", "inhibitor", "reproducer"];
+                let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
+                Some(Mutation::IncreaseStimulus {
+                    topic,
+                    factor: rng.gen_range(1.1..=1.5),
+                })
+            })
+        }
+    }
+}
+
 
 
 /// Load metrics produced by `scripts/prepare_telemetry_dashboard.py` and derive harness guidance.
@@ -1308,135 +1105,6 @@ fn compute_fitness(stats: &RunStatistics) -> (f32, bool) {
     (fitness, breach_observed)
 }
 
-fn perform_mutation<R: Rng>(
-    config: &EvolutionConfig,
-    mutation_strategy: &MutationStrategy,
-    stats: &RunStatistics,
-    fitness_score: f32,
-    breach_observed: bool,
-    rng: &mut R,
-    num_stimulus_events: usize,
-    num_threat_spikes: usize,
-    lineage_fitness_history: &HashMap<String, Vec<f32>>,
-    refinement_active_for: &mut u32,
-) -> Option<Mutation> {
-    if rng.gen_range(0.0..1.0) >= config.mutation_rate {
-        return None;
-    }
-
-    if *refinement_active_for > 0 {
-        *refinement_active_for -= 1;
-        // Apply a small, refining mutation
-        let mut mutations = Vec::new();
-        let topics = ["activator", "inhibitor", "reproducer"];
-        let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
-        mutations.push(Mutation::IncreaseStimulus {
-            topic: topic.clone(),
-            factor: 1.0 + config.mutation_strength * config.refinement_mutation_strength_factor,
-        });
-        mutations.push(Mutation::DecreaseStimulus {
-            topic,
-            factor: 1.0 + config.mutation_strength * config.refinement_mutation_strength_factor,
-        });
-        return mutations.choose(rng).cloned();
-    }
-
-    match mutation_strategy {
-        MutationStrategy::Targeted => {
-            if let Some(mutation) = recommend_targeted_mutation(lineage_fitness_history, rng) {
-                *refinement_active_for = config.refinement_period;
-                return Some(mutation);
-            }
-            // Fallback to random if no targeted mutation is recommended
-            let mut random_config = config.clone();
-            random_config.mutation_strategy = MutationStrategy::Random;
-            perform_mutation(
-                &random_config,
-                &random_config.mutation_strategy,
-                stats,
-                fitness_score,
-                breach_observed,
-                rng,
-                num_stimulus_events,
-                num_threat_spikes,
-                lineage_fitness_history,
-                refinement_active_for,
-            )
-        }
-        MutationStrategy::Random => {
-            let mut mutations = Vec::new();
-
-            if let Some(mutation) = recommend_mutation(stats, fitness_score, breach_observed) {
-                mutations.push(mutation);
-            }
-
-            let topics = ["activator", "inhibitor", "reproducer"];
-            let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
-            mutations.push(Mutation::IncreaseStimulus {
-                topic: topic.clone(),
-                factor: 1.0 + config.mutation_strength,
-            });
-            mutations.push(Mutation::DecreaseStimulus {
-                topic,
-                factor: 1.0 + config.mutation_strength,
-            });
-
-            if stats.step_count > 0 {
-                mutations.push(Mutation::AddSpike {
-                    step: rng.gen_range(0..stats.step_count) as u32,
-                    intensity: config.mutation_strength,
-                });
-            }
-
-            if num_stimulus_events > 1 {
-                mutations.push(Mutation::SwapStimulus {
-                    event_index1: rng.gen_range(0..num_stimulus_events),
-                    event_index2: rng.gen_range(0..num_stimulus_events),
-                });
-                mutations.push(Mutation::RemoveStimulus {
-                    event_index: rng.gen_range(0..num_stimulus_events),
-                });
-            }
-
-            if num_threat_spikes > 0 {
-                mutations.push(Mutation::ChangeThreatSpike {
-                    event_index: rng.gen_range(0..num_threat_spikes),
-                    new_step: rng.gen_range(0..stats.step_count) as u32,
-                    new_intensity: config.mutation_strength,
-                });
-                mutations.push(Mutation::ChangeThreatSpikeTime {
-                    spike_index: rng.gen_range(0..num_threat_spikes),
-                    new_step: rng.gen_range(0..stats.step_count) as u32,
-                });
-                mutations.push(Mutation::ChangeThreatSpikeDuration {
-                    spike_index: rng.gen_range(0..num_threat_spikes),
-                    new_duration: rng.gen_range(1..=(stats.step_count.max(1))) as u32,
-                });
-            }
-
-            mutations.push(Mutation::ChangeReproductionRate {
-                factor: 1.0 + rng.gen_range(-config.mutation_strength..=config.mutation_strength),
-            });
-
-            // Add ChangeInitialCellCount mutation
-            mutations.push(Mutation::ChangeInitialCellCount {
-                count: (stats.avg_cell_count as f32 * (1.0 + rng.gen_range(-config.mutation_strength..=config.mutation_strength))).max(1.0) as usize,
-            });
-
-            // Add ChangeThreatProfile mutation
-            mutations.push(Mutation::ChangeThreatProfile {
-                profile: config::ThreatProfile {
-                    background_threat: rng.gen_range(0.0..=1.0),
-                    spike_threshold: rng.gen_range(0.0..=1.0),
-                },
-            });
-
-            mutations.choose(rng).cloned()
-        }
-    }
-}
-
-
 fn compute_lineage_component(stats: &RunStatistics) -> f32 {
     if stats.step_count == 0 {
         return 0.0;
@@ -1550,2242 +1218,771 @@ fn outcome_note_for_analysis(analysis: &HarnessAnalysis) -> String {
     }
 }
 
-fn recommend_targeted_mutation<R: Rng>(
-
-    lineage_fitness_history: &HashMap<String, Vec<f32>>,
-
-    rng: &mut R,
-
-) -> Option<Mutation> {
-
-    const STAGNATION_THRESHOLD: usize = 3;
-
-
-
-    let stagnating_lineages: Vec<_> = lineage_fitness_history
-
-        .iter()
-
-        .filter(|(_, history)| {
-
-            if history.len() < STAGNATION_THRESHOLD {
-
-                return false;
-
-            }
-
-            let last_n_fitness: Vec<f32> = history.iter().rev().take(STAGNATION_THRESHOLD).copied().collect();
-
-            // Check if fitness is not increasing
-
-            last_n_fitness.windows(2).all(|w| w[0] <= w[1])
-
-        })
-
-        .collect();
-
-
-
-    if stagnating_lineages.is_empty() {
-
-        return None;
-
-    }
-
-
-
-    // Pick a random stagnating lineage to mutate
-
-    let (_lineage_id, _) = stagnating_lineages.choose(rng).unwrap();
-
-
-
-    // Apply a more drastic mutation from an expanded pool. The "targeted" aspect is that
-
-    // we are applying a strong mutation because a lineage was detected as stagnating.
-
-    let mutations = vec![
-
-        Mutation::IncreaseStimulus {
-
-            topic: "activator".to_string(),
-
-            factor: rng.gen_range(1.5..=2.5),
-
-        },
-
-        Mutation::AddSpike {
-
-            step: rng.gen_range(0..100),
-
-            intensity: rng.gen_range(0.7..=1.2),
-
-        },
-
-        Mutation::ChangeReproductionRate { factor: rng.gen_range(1.2..=1.8) },
-
-        Mutation::ChangeThreatProfile {
-
-            profile: config::ThreatProfile {
-
-                background_threat: rng.gen_range(0.2..=0.8),
-
-                spike_threshold: rng.gen_range(0.4..=1.0),
-
-            }
-
-        },
-
-                // Adding more diverse mutations
-
-                Mutation::SwapStimulus { event_index1: rng.gen_range(0..5), event_index2: rng.gen_range(0..5) },
-
-                Mutation::ChangeThreatSpikeTime { spike_index: rng.gen_range(0..2), new_step: rng.gen_range(0..100) },
-
-                Mutation::ChangeInitialCellCount { count: rng.gen_range(5..20) },
-
-    ];
-
-
-
-    mutations.choose(rng).cloned()
-
-}
-
-
-
 #[cfg(test)]
-
 mod tests {
-
     use super::*;
-
+    use serde::Serialize;
+    use serde_json::json;
+    use std::io::Cursor;
+    use tempfile::NamedTempFile;
+    use tempfile::tempdir;
     use crate::stimulus::StimulusCommand;
 
-    use serde::Serialize;
-
-    use serde_json::json;
-
-    use std::collections::BTreeMap;
-
-    use std::io::Cursor;
-
-    use tempfile::{tempdir, NamedTempFile};
-
-
-
     #[test]
+    fn retain_elite_requeues_elite_candidates() {
+        let mut harness = AdversarialHarness::new(EvolutionConfig {
+            batch_size: 1,
+            max_generations: 5,
+            retain_elite: true,
+            crossover_rate: 0.7,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
+        });
 
-        fn elitism_carries_over_elite_candidates() {
-
-                                    let mut harness = AdversarialHarness::new(EvolutionConfig {
-
-                                        batch_size: 1,
-
-                                        max_generations: 5,
-
-                                        elite_size: 0,
-
-                                        crossover_rate: 0.7,
-
-                                        selection_strategy: SelectionStrategy::Tournament { size: 3 },
-
-                                        crossover_strategy: CrossoverStrategy::Uniform,
-
-                                        mutation_strategy: MutationStrategy::Random,
-
-                                        mutation_rate: 0.8,
-
-                                        mutation_strength: 1.5,
-
-                                        adaptive_mutation: false,
-
-                                        refinement_period: 3,
-
-                                        adaptive_mutation_stagnation_threshold: 3,
-
-                                        refinement_mutation_strength_factor: 0.5,
-
-                                        exploration_generations: 3,
-
-                                        new_candidate_rate: 0.1,
-
-                                        exploration_rate: 0.5,
-
-                                    });
-
-
-
-        let scenario_file = NamedTempFile::new().unwrap();
-
-        let scenario_path = scenario_file.path().to_str().unwrap().to_string();
-
-        fs::write(&scenario_path, "scenario_name: test").unwrap();
-
-
-
-                harness.enqueue(AttackCandidate {
-
-
-
-                    id: "elite-seed-1".into(),
-
-
-
-                    scenario_ref: scenario_path,
-
-
-
-                    stimulus_ref: None,
-
-
-
-                    generation: 0,
-
-
-
-                    parent_id: None,
-
-
-
-                    mutation: None,
-
-
-
-                    refinement_active_for: 0,
-
-
-
-                });
-
-
+        harness.enqueue(AttackCandidate {
+            id: "elite-seed-1".into(),
+            scenario_ref: "docs/examples/a.yaml".into(),
+            stimulus_ref: None,
+            generation: 0,
+            parent_id: None,
+            mutation: None,
+        });
 
         let artifact_dir = tempdir().expect("failed to create temp dir");
-
         let evaluations = harness
-
             .run_generations(1, artifact_dir.path(), |_candidate| {
-
                 // Simulate an elite candidate (high fitness, no mutation recommended)
-
                 let steps = vec![StepMetrics {
-
                     step: 1, // Changed step to 1 to influence lineage_pressure calculation
-
                     threat_score: 1.0, // Increased threat to make fitness_score > 0.4
-
                     cell_count: 10,
-
                     replications: 0, // Set replications to 0 to make reproduction_rate 0
-
                     signals_total: 0,
-
                     lineage_shifts_total: 1, // Set lineage_shifts_total to 1 to make lineage_pressure >= 0.2
-
                     stimulus_total: 0.0,
-
                     signals_by_topic: HashMap::new(),
-
                     lineage_shifts_by_lineage: HashMap::new(),
-
                     stimulus_by_topic: HashMap::new(), // Make stimulus_by_topic empty
-
                 }];
-
                 Ok(ExecutionReport {
-
                     steps,
-
                     telemetry_path: None,
-
                     metrics_path: None,
-
                     stimulus_path: None,
-
                 })
-
             })
-
             .expect("elite candidate evaluation");
 
-
-
         assert_eq!(evaluations.len(), 1);
-
         assert_eq!(harness.archive.len(), 1);
-
         // The backlog should now contain `batch_size` new candidates generated by the selection process
-
         assert_eq!(harness.backlog_len(), harness.config.batch_size);
-
     }
 
-
-
     #[test]
-
     fn next_batch_respects_batch_size() {
-
-                                        let mut harness = AdversarialHarness::new(EvolutionConfig {
-
-                                            batch_size: 2,
-
-                                            max_generations: 5,
-
-                                            elite_size: 0,
-
-                                            crossover_rate: 0.7,
-
-                                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
-
-                                            crossover_strategy: CrossoverStrategy::Uniform,
-
-                                            mutation_strategy: MutationStrategy::Random,
-
-                                            mutation_rate: 0.8,
-
-                                            mutation_strength: 1.5,
-
-                                            adaptive_mutation: false,
-
-                                            refinement_period: 3,
-
-                                            adaptive_mutation_stagnation_threshold: 3,
-
-                                            refinement_mutation_strength_factor: 0.5,
-
-                                            exploration_generations: 3,
-
-                                            new_candidate_rate: 0.1,
-
-                                            exploration_rate: 0.5,
-
-                                        });
-
-
-
-                harness.enqueue(AttackCandidate {
-
-
-
-                    id: "seed-1".into(),
-
-
-
-                    scenario_ref: "docs/examples/baseline-growth.yaml".into(),
-
-
-
-                    stimulus_ref: None,
-
-
-
-                    generation: 0,
-
-
-
-                    parent_id: None,
-
-
-
-                    mutation: None,
-
-
-
-                    refinement_active_for: 0,
-
-
-
-                });
-
-
-
-                harness.enqueue(AttackCandidate {
-
-
-
-                    id: "mut-2".into(),
-
-
-
-                    scenario_ref: "docs/examples/intense-defense.yaml".into(),
-
-
-
-                    stimulus_ref: None,
-
-
-
-                    generation: 1,
-
-
-
-                    parent_id: Some("seed-1".into()),
-
-
-
-                    mutation: Some(Mutation::IncreaseStimulus {
-
-
-
-                        topic: "inhibitor".to_string(),
-
-
-
-                        factor: 1.5,
-
-
-
-                    }),
-
-
-
-                    refinement_active_for: 0,
-
-
-
-                });
-
-
-
-                harness.enqueue(AttackCandidate {
-
-
-
-                    id: "mut-3".into(),
-
-
-
-                    scenario_ref: "docs/examples/rapid-probe.yaml".into(),
-
-
-
-                    stimulus_ref: None,
-
-
-
-                    generation: 1,
-
-
-
-                    parent_id: Some("seed-1".into()),
-
-
-
-                    mutation: Some(Mutation::AddSpike {
-
-
-
-                        step: 10,
-
-
-
-                        intensity: 0.8,
-
-
-
-                    }),
-
-
-
-                    refinement_active_for: 0,
-
-
-
-                });
-
-
+        let mut harness = AdversarialHarness::new(EvolutionConfig {
+            batch_size: 2,
+            max_generations: 5,
+            retain_elite: false,
+            crossover_rate: 0.7,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
+        });
+
+        harness.enqueue(AttackCandidate {
+            id: "seed-1".into(),
+            scenario_ref: "docs/examples/baseline-growth.yaml".into(),
+            stimulus_ref: None,
+            generation: 0,
+            parent_id: None,
+            mutation: None,
+        });
+
+        harness.enqueue(AttackCandidate {
+            id: "mut-2".into(),
+            scenario_ref: "docs/examples/intense-defense.yaml".into(),
+            stimulus_ref: None,
+            generation: 1,
+            parent_id: Some("seed-1".into()),
+            mutation: Some(Mutation::IncreaseStimulus {
+                topic: "inhibitor".to_string(),
+                factor: 1.5,
+            }),
+        });
+
+        harness.enqueue(AttackCandidate {
+            id: "mut-3".into(),
+            scenario_ref: "docs/examples/rapid-probe.yaml".into(),
+            stimulus_ref: None,
+            generation: 1,
+            parent_id: Some("seed-1".into()),
+            mutation: Some(Mutation::AddSpike {
+                step: 10,
+                intensity: 0.8,
+            }),
+        });
 
         let first_batch = harness.next_batch();
-
         assert_eq!(first_batch.len(), 2);
-
         assert_eq!(harness.backlog_len(), 1);
 
-
-
         let second_batch = harness.next_batch();
-
         assert_eq!(second_batch.len(), 1);
-
         assert_eq!(harness.backlog_len(), 0);
-
     }
 
-
-
     #[test]
-
     fn analyze_metrics_from_csv_stream() {
-
         let rows = vec![
-
             TestRow::new(
-
                 0,
-
                 0.42,
-
                 5,
-
                 2,
-
                 &json!({ "activator": 3, "inhibitor": 1 }),
-
                 &json!({ "stem": 2 }),
-
                 &json!({ "activator": 0.6 }),
-
                 4,
-
                 2,
-
                 0.6,
-
             ),
-
             TestRow::new(
-
                 1,
-
                 0.85,
-
                 4,
-
                 1,
-
                 &json!({ "activator": 2 }),
-
                 &json!({ "adaptive": 1 }),
-
                 &json!({ "activator": 0.4, "inhibitor": 1.0 }),
-
                 2,
-
                 1,
-
                 1.4,
-
             ),
-
         ];
-
         let csv = serialize_rows(rows);
-
         let analysis = analyze_metrics_csv_from_reader(Cursor::new(csv)).expect("analysis");
-
         assert_eq!(analysis.statistics.step_count, 2);
-
         assert!(analysis.fitness_score >= 0.0);
-
         assert!(analysis.statistics.total_signals > 0);
-
         assert!(analysis.recommended_mutation.is_some());
-
     }
 
-
-
     #[test]
-
     fn evaluate_csv_records_outcome_and_enqueues_mutation() {
-
         let rows = vec![
-
             TestRow::new(
-
                 0,
-
                 0.30,
-
                 4,
-
                 3,
-
                 &json!({ "activator": 1 }),
-
                 &json!({}),
-
                 &json!({ "activator": 0.2 }),
-
                 1,
-
                 0,
-
                 0.2,
-
             ),
-
             TestRow::new(
-
                 1,
-
                 0.28,
-
                 5,
-
                 2,
-
                 &json!({ "activator": 1 }),
-
                 &json!({}),
-
                 &json!({ "activator": 0.2 }),
-
                 1,
-
                 0,
-
                 0.2,
-
             ),
-
         ];
-
         let csv = serialize_rows(rows);
 
-
-
-                                        let mut harness = AdversarialHarness::new(EvolutionConfig {
-
-
-
-                                            batch_size: 1,
-
-
-
-                                            max_generations: 3,
-
-
-
-                                            elite_size: 0,
-
-
-
-                                            crossover_rate: 0.7,
-
-
-
-                                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
-
-
-
-                                            crossover_strategy: CrossoverStrategy::Uniform,
-
-
-
-                                            mutation_strategy: MutationStrategy::Random,
-
-
-
-                                            mutation_rate: 0.8,
-
-
-
-                                            mutation_strength: 1.5,
-
-
-
-                                            adaptive_mutation: false,
-
-
-
-                                            refinement_period: 3,
-
-
-
-                                            adaptive_mutation_stagnation_threshold: 3,
-
-
-
-                                            refinement_mutation_strength_factor: 0.5,
-
-
-
-                                            exploration_generations: 3,
-
-
-
-                                            new_candidate_rate: 0.1,
-
-
-
-                                            exploration_rate: 0.5,
-
-
-
-                                        });
-
-
+        let mut harness = AdversarialHarness::new(EvolutionConfig {
+            batch_size: 1,
+            max_generations: 3,
+            retain_elite: false,
+            crossover_rate: 0.7,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
+        });
 
         let temp_csv = NamedTempFile::new().expect("temp file");
-
         std::fs::write(temp_csv.path(), csv).expect("write csv");
 
-
-
-                let candidate = AttackCandidate {
-
-
-
-                    id: "seed-ci".into(),
-
-
-
-                    scenario_ref: "docs/examples/intense-defense.yaml".into(),
-
-
-
-                    stimulus_ref: Some("docs/examples/ci-stimulus.jsonl".into()),
-
-
-
-                    generation: 0,
-
-
-
-                    parent_id: None,
-
-
-
-                    mutation: None,
-
-
-
-                    refinement_active_for: 0,
-
-
-
-                };
-
-
+        let candidate = AttackCandidate {
+            id: "seed-ci".into(),
+            scenario_ref: "docs/examples/intense-defense.yaml".into(),
+            stimulus_ref: Some("docs/examples/ci-stimulus.jsonl".into()),
+            generation: 0,
+            parent_id: None,
+            mutation: None,
+        };
 
         let (outcome, maybe_mutation, analysis) = harness
-
             .evaluate_csv(candidate, temp_csv.path())
-
             .expect("evaluation");
-
         assert!((0.0..=1.0).contains(&analysis.fitness_score));
-
         assert_eq!(outcome.candidate.id, "seed-ci");
-
         assert_eq!(outcome.statistics.step_count, 2);
-
         if let Some(mutant) = maybe_mutation {
-
-            assert_ne!(mutant.id, "seed-ci"); // Ensure it's a new ID
-
-            assert_eq!(mutant.id.len(), 8); // Ensure it's a short ID
-
+            assert!(mutant.id.starts_with("seed-ci-mut"));
             assert_eq!(
-
                 mutant.stimulus_ref.as_deref(),
-
                 Some("docs/examples/ci-stimulus.jsonl")
-
             );
-
             assert_eq!(harness.backlog_len(), 1);
-
         }
-
     }
 
-
-
     #[test]
-
     fn harness_state_roundtrip_persists_archive() {
+        let mut harness = AdversarialHarness::new(EvolutionConfig {
+            batch_size: 1,
+            max_generations: 4,
+            retain_elite: true,
+            crossover_rate: 0.7,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
+        });
 
-                                                let mut harness = AdversarialHarness::new(EvolutionConfig {
-
-                                                    batch_size: 1,
-
-                                                    max_generations: 4,
-
-                                                    elite_size: 0,
-
-                                                    crossover_rate: 0.7,
-
-                                                    selection_strategy: SelectionStrategy::Tournament { size: 3 },
-
-                                                    crossover_strategy: CrossoverStrategy::Uniform,
-
-                                                    mutation_strategy: MutationStrategy::Random,
-
-                                                    mutation_rate: 0.8,
-
-                                                    mutation_strength: 1.5,
-
-                                                    adaptive_mutation: false,
-
-                                                    refinement_period: 3,
-
-                                                    adaptive_mutation_stagnation_threshold: 3,
-
-                                                    refinement_mutation_strength_factor: 0.5,
-
-                                                    exploration_generations: 3,
-
-                                                    new_candidate_rate: 0.1,
-
-                                                    exploration_rate: 0.5,
-
-                                                });
-
-
-
-                let candidate = AttackCandidate {
-
-
-
-                    id: "state-seed".into(),
-
-
-
-                    scenario_ref: "docs/examples/intense-defense.yaml".into(),
-
-
-
-                    stimulus_ref: None,
-
-
-
-                    generation: 0,
-
-
-
-                    parent_id: None,
-
-
-
-                    mutation: Some(Mutation::AddSpike {
-
-
-
-                        step: 0,
-
-
-
-                        intensity: 0.0,
-
-
-
-                    }),
-
-
-
-                    refinement_active_for: 0,
-
-
-
-                };
-
-
+        let candidate = AttackCandidate {
+            id: "state-seed".into(),
+            scenario_ref: "docs/examples/intense-defense.yaml".into(),
+            stimulus_ref: None,
+            generation: 0,
+            parent_id: None,
+            mutation: Some(Mutation::AddSpike {
+                step: 0,
+                intensity: 0.0,
+            }),
+        };
 
         let steps = vec![StepMetrics {
-
             step: 0,
-
             threat_score: 0.5,
-
             cell_count: 4,
-
             replications: 1,
-
             signals_total: 1,
-
             lineage_shifts_total: 0,
-
             stimulus_total: 0.4,
-
             signals_by_topic: HashMap::from([("activator".into(), 1)]),
-
             lineage_shifts_by_lineage: HashMap::new(),
-
             stimulus_by_topic: HashMap::from([("activator".into(), 0.4)]),
-
         }];
 
-
-
         harness
-
             .evaluate_steps(candidate, steps)
-
             .expect("evaluation succeeds");
 
-
-
         let tmp = NamedTempFile::new().expect("temp file");
-
         harness.save_state(tmp.path()).expect("save state");
 
-
-
         let loaded = AdversarialHarness::load_state(tmp.path()).expect("load state");
-
         assert_eq!(loaded.config().batch_size, 1);
-
         assert_eq!(loaded.archive.len(), 1);
-
         assert_eq!(loaded.archive[0].candidate.id, "state-seed");
-
         assert!(loaded.archive[0].statistics.total_signals >= 1);
-
     }
 
-
-
     #[test]
-
     fn run_generations_executes_batches() {
-
-                                        let mut harness = AdversarialHarness::new(EvolutionConfig {
-
-                                            batch_size: 1,
-
-                                            max_generations: 5,
-
-                                            elite_size: 0,
-
-                                            crossover_rate: 0.7,
-
-                                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
-
-                                            crossover_strategy: CrossoverStrategy::Uniform,
-
-                                            mutation_strategy: MutationStrategy::Random,
-
-                                            mutation_rate: 0.8,
-
-                                            mutation_strength: 1.5,
-
-                                            adaptive_mutation: false,
-
-                                            refinement_period: 3,
-
-                                            adaptive_mutation_stagnation_threshold: 3,
-
-                                            refinement_mutation_strength_factor: 0.5,
-
-                                            exploration_generations: 3,
-
-                                            new_candidate_rate: 0.1,
-
-                                            exploration_rate: 0.5,
-
-                                        });
-
-
-
-        let scenario_file_a = NamedTempFile::new().unwrap();
-
-        let scenario_path_a = scenario_file_a.path().to_str().unwrap().to_string();
-
-        fs::write(&scenario_path_a, "scenario_name: a").unwrap();
-
-
-
-        let scenario_file_b = NamedTempFile::new().unwrap();
-
-        let scenario_path_b = scenario_file_b.path().to_str().unwrap().to_string();
-
-        fs::write(&scenario_path_b, "scenario_name: b").unwrap();
-
-
-
-                harness.enqueue(AttackCandidate {
-
-
-
-                    id: "loop-seed-1".into(),
-
-
-
-                    scenario_ref: scenario_path_a,
-
-
-
-                    stimulus_ref: None,
-
-
-
-                    generation: 0,
-
-
-
-                    parent_id: None,
-
-
-
-                    mutation: None,
-
-
-
-                    refinement_active_for: 0,
-
-
-
-                });
-
-                harness.enqueue(AttackCandidate {
-
-                    id: "loop-seed-2".into(),
-
-                    scenario_ref: scenario_path_b,
-
-                    stimulus_ref: None,
-
-                    generation: 0,
-
-                    parent_id: None,
-
-                    mutation: None,
-
-                    refinement_active_for: 0,
-
-                });
-
-
+        let mut harness = AdversarialHarness::new(EvolutionConfig {
+            batch_size: 1,
+            max_generations: 5,
+            retain_elite: false,
+            crossover_rate: 0.7,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
+        });
+
+        harness.enqueue(AttackCandidate {
+            id: "loop-seed-1".into(),
+            scenario_ref: "docs/examples/a.yaml".into(),
+            stimulus_ref: None,
+            generation: 0,
+            parent_id: None,
+            mutation: None,
+        });
+        harness.enqueue(AttackCandidate {
+            id: "loop-seed-2".into(),
+            scenario_ref: "docs/examples/b.yaml".into(),
+            stimulus_ref: None,
+            generation: 0,
+            parent_id: None,
+            mutation: None,
+        });
 
         let artifact_dir = tempdir().expect("failed to create temp dir");
-
         let evaluations = harness
-
-            .run_generations(2, artifact_dir.path(), |candidate| {
-
+            .run_generations(2, artifact_dir.path(), |candidate: &AttackCandidate| {
                 let base_threat = 0.3 + candidate.generation as f32 * 0.1;
-
                 let steps = vec![StepMetrics {
-
                     step: candidate.generation,
-
                     threat_score: base_threat,
-
                     cell_count: 4,
-
                     replications: 1,
-
                     signals_total: 0,
-
                     lineage_shifts_total: 0,
-
                     stimulus_total: 0.0,
-
                     signals_by_topic: HashMap::new(),
-
                     lineage_shifts_by_lineage: HashMap::new(),
-
                     stimulus_by_topic: HashMap::new(),
-
                 }];
-
                 Ok(ExecutionReport {
-
                     steps,
-
                     telemetry_path: None,
-
                     metrics_path: None,
-
                     stimulus_path: None,
-
                 })
-
             })
-
             .expect("loop execution");
 
-
-
-        assert_eq!(evaluations.len(), 5);
-
-        assert_eq!(harness.archive.len(), 5);
-
-        assert_eq!(harness.backlog_len(), 4);
-
+        assert_eq!(evaluations.len(), 5); // 2 initial + 3 mutants from gen 2
+        assert_eq!(harness.archive.len(), 5); // 2 initial + 3 from gen 2
+        assert_eq!(harness.backlog_len(), 4); // New candidates for gen 3
     }
 
-
-
     #[test]
-
     fn archive_prunes_to_configured_limit() {
-
-                                        let mut harness = AdversarialHarness::new(EvolutionConfig {
-
-                                            batch_size: 1,
-
-                                            max_generations: 2,
-
-                                            elite_size: 0,
-
-                                            crossover_rate: 0.7,
-
-                                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
-
-                                            crossover_strategy: CrossoverStrategy::Uniform,
-
-                                            mutation_strategy: MutationStrategy::Random,
-
-                                            mutation_rate: 0.8,
-
-                                            mutation_strength: 1.5,
-
-                                            adaptive_mutation: false,
-
-                                            refinement_period: 3,
-
-                                            adaptive_mutation_stagnation_threshold: 3,
-
-                                            refinement_mutation_strength_factor: 0.5,
-
-                                            exploration_generations: 3,
-
-                                            new_candidate_rate: 0.1,
-
-                                            exploration_rate: 0.5,
-
-                                        });
-
-
+        let mut harness = AdversarialHarness::new(EvolutionConfig {
+            batch_size: 1,
+            max_generations: 2,
+            retain_elite: false,
+            crossover_rate: 0.7,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
+        });
 
         let template_stats = RunStatistics {
-
             step_count: 1,
-
             avg_threat: 0.1,
-
             max_threat: 0.2,
-
             avg_cell_count: 1.0,
-
             min_cell_count: 1,
-
             max_cell_count: 1,
-
             total_replications: 0,
-
             total_signals: 0,
-
             total_lineage_shifts: 0,
-
             total_stimulus: 0.0,
-
             signals_by_topic: HashMap::new(),
-
             lineage_by_type: HashMap::new(),
-
             stimuli_by_topic: HashMap::new(),
-
         };
-
-
 
         for idx in 0..3 {
-
             let outcome = AttackOutcome {
-
-                            candidate: AttackCandidate {
-
-                                id: format!("cand-{idx}"),
-
-                                scenario_ref: "docs/examples/demo.yaml".into(),
-
-                                stimulus_ref: None,
-
-                                generation: idx,
-
-                                parent_id: None,
-
-                                mutation: None,
-
-                                refinement_active_for: 0,
-
-                            },
-
+                candidate: AttackCandidate {
+                    id: format!("cand-{idx}"),
+                    scenario_ref: "docs/examples/demo.yaml".into(),
+                    stimulus_ref: None,
+                    generation: idx,
+                    parent_id: None,
+                    mutation: None,
+                },
                 fitness_score: idx as f32,
-
                 breach_observed: false,
-
                 notes: None,
-
                 statistics: template_stats.clone(),
-
             };
-
             harness.record_outcome(outcome);
-
         }
-
-
 
         assert_eq!(harness.archive.len(), 2);
-
         assert_eq!(harness.archive[0].candidate.id, "cand-1");
-
         assert_eq!(harness.archive[1].candidate.id, "cand-2");
-
     }
 
-
-
     #[test]
-
     fn archive_clears_when_limit_zero() {
-
-                                        let mut harness = AdversarialHarness::new(EvolutionConfig {
-
-                                            batch_size: 1,
-
-                                            max_generations: 0,
-
-                                            elite_size: 0,
-
-                                            crossover_rate: 0.7,
-
-                                            selection_strategy: SelectionStrategy::Tournament { size: 3 },
-
-                                            crossover_strategy: CrossoverStrategy::Uniform,
-
-                                            mutation_strategy: MutationStrategy::Random,
-
-                                            mutation_rate: 0.8,
-
-                                            mutation_strength: 1.5,
-
-                                            adaptive_mutation: false,
-
-                                            refinement_period: 3,
-
-                                            adaptive_mutation_stagnation_threshold: 3,
-
-                                            refinement_mutation_strength_factor: 0.5,
-
-                                            exploration_generations: 3,
-
-                                            new_candidate_rate: 0.1,
-
-                                            exploration_rate: 0.5,
-
-                                        });
-
-
+        let mut harness = AdversarialHarness::new(EvolutionConfig {
+            batch_size: 1,
+            max_generations: 0,
+            retain_elite: false,
+            crossover_rate: 0.7,
+            selection_strategy: SelectionStrategy::Tournament { size: 3 },
+            crossover_strategy: CrossoverStrategy::Uniform,
+            mutation_strategy: MutationStrategy::Random,
+        });
 
         let stats = RunStatistics {
-
             step_count: 1,
-
             avg_threat: 0.1,
-
             max_threat: 0.2,
-
             avg_cell_count: 1.0,
-
             min_cell_count: 1,
-
             max_cell_count: 1,
-
             total_replications: 0,
-
             total_signals: 0,
-
             total_lineage_shifts: 0,
-
             total_stimulus: 0.0,
-
             signals_by_topic: HashMap::new(),
-
             lineage_by_type: HashMap::new(),
-
             stimuli_by_topic: HashMap::new(),
-
         };
-
-
 
         let outcome = AttackOutcome {
-
-                        candidate: AttackCandidate {
-
-                            id: "zero-limit".into(),
-
-                            scenario_ref: "docs/examples/demo.yaml".into(),
-
-                            stimulus_ref: None,
-
-                            generation: 0,
-
-                            parent_id: None,
-
-                            mutation: None,
-
-                            refinement_active_for: 0,
-
-                        },
-
+            candidate: AttackCandidate {
+                id: "zero-limit".into(),
+                scenario_ref: "docs/examples/demo.yaml".into(),
+                stimulus_ref: None,
+                generation: 0,
+                parent_id: None,
+                mutation: None,
+            },
             fitness_score: 0.5,
-
             breach_observed: false,
-
             notes: None,
-
             statistics: stats,
-
         };
-
-
 
         harness.record_outcome(outcome);
-
         assert!(harness.archive.is_empty());
-
     }
 
-
-
     #[test]
-
     fn lineage_component_boosts_fitness() {
-
         let base_stats = RunStatistics {
-
             step_count: 20,
-
             avg_threat: 0.35,
-
             max_threat: 0.9,
-
             avg_cell_count: 10.0,
-
             min_cell_count: 9,
-
             max_cell_count: 12,
-
             total_replications: 8,
-
             total_signals: 24,
-
             total_lineage_shifts: 0,
-
             total_stimulus: 0.6,
-
             signals_by_topic: HashMap::from([("activator".into(), 20)]),
-
             lineage_by_type: HashMap::new(),
-
             stimuli_by_topic: HashMap::from([("activator".into(), 0.6)]),
-
         };
-
         let (baseline_fitness, baseline_breach) = compute_fitness(&base_stats);
-
         assert!(baseline_fitness > 0.0);
-
         assert!(!baseline_breach);
 
-
-
         let mut elevated_stats = base_stats.clone();
-
         elevated_stats.total_lineage_shifts = 18;
-
         elevated_stats
-
             .lineage_by_type
-
             .insert("AdaptiveProbe".into(), 8);
-
         elevated_stats
-
             .lineage_by_type
-
             .insert("IntrusionDetection".into(), 10);
 
-
-
         let (elevated_fitness, elevated_breach) = compute_fitness(&elevated_stats);
-
         assert!(
-
             elevated_fitness > baseline_fitness + 0.1,
-
             "expected {elevated_fitness} to significantly exceed {baseline_fitness}"
-
         );
-
         assert!(elevated_breach);
-
     }
 
-
-
     #[test]
-
     fn recommendation_targets_lineage_churn_gap() {
-
         let stats = RunStatistics {
-
             step_count: 20,
-
             avg_threat: 0.6,
-
             max_threat: 1.0,
-
             avg_cell_count: 11.0,
-
             min_cell_count: 8,
-
             max_cell_count: 12,
-
             total_replications: 9,
-
             total_signals: 12,
-
             total_lineage_shifts: 2,
-
             total_stimulus: 0.0,
-
             signals_by_topic: HashMap::new(),
-
             lineage_by_type: HashMap::from([("IntrusionDetection".into(), 2)]),
-
             stimuli_by_topic: HashMap::new(),
-
         };
 
-
-
         let (fitness, breach) = compute_fitness(&stats);
-
         assert!(fitness >= 0.4);
-
         assert!(!breach);
 
-
-
         let suggestion =
-
             recommend_mutation(&stats, fitness, breach).expect("expected lineage churn guidance");
-
         assert!(
-
             match suggestion {
-
                 Mutation::IncreaseStimulus { ref topic, .. } => topic == "activator",
-
                 _ => false,
-
             },
-
             "expected suggestion to be IncreaseStimulus for activator: {suggestion:?}"
-
         );
-
     }
 
-
-
     #[test]
-
     fn recommendation_focuses_dominant_lineage_when_diffuse() {
-
         let stats = RunStatistics {
-
             step_count: 20,
-
             avg_threat: 0.55,
-
             max_threat: 1.0,
-
             avg_cell_count: 12.0,
-
             min_cell_count: 9,
-
             max_cell_count: 14,
-
             total_replications: 6,
-
             total_signals: 18,
-
             total_lineage_shifts: 8,
-
             total_stimulus: 0.5,
-
             signals_by_topic: HashMap::new(),
-
             lineage_by_type: HashMap::from([
-
                 ("IntrusionDetection".into(), 3),
-
                 ("AdaptiveProbe".into(), 3),
-
                 ("Recon".into(), 2),
-
             ]),
-
             stimuli_by_topic: HashMap::new(),
-
         };
 
-
-
         let (fitness, breach) = compute_fitness(&stats);
-
         assert!(fitness > 0.4);
-
         assert!(!breach);
 
-
-
         let suggestion =
-
             recommend_mutation(&stats, fitness, breach).expect("expected dominant lineage focus");
-
         assert!(
-
             matches!(suggestion,  Mutation::IncreaseStimulus { .. }),
-
             "expected focus guidance: {suggestion:?}"
-
         );
-
         if let Mutation::IncreaseStimulus { topic, .. } = suggestion {
-
             let lineages = ["IntrusionDetection", "AdaptiveProbe", "Recon"];
-
                     assert!(
-
                         lineages.iter().any(|lineage| *topic == **lineage),
-
                         "expected suggestion to reference a known lineage: {topic}"
-
                     );        }
-
     }
 
-
-
     #[test]
-
-    fn test_recommend_targeted_mutation() {
-
-        let mut rng = rand::thread_rng();
-
-        let mut history = HashMap::new();
-
-        history.insert("stagnant_lineage".to_string(), vec![0.5, 0.5, 0.5]);
-
-        history.insert("healthy_lineage".to_string(), vec![0.5, 0.6, 0.7]);
-
-
-
-        let mutation = recommend_targeted_mutation(&history, &mut rng);
-
-
-
-        assert!(mutation.is_some());
-
-        let mutation = mutation.unwrap();
-
-
-
-                // Check that the mutation is one of the drastic types and the topic is not malformed.
-
-
-
-                match mutation {
-
-
-
-                    Mutation::IncreaseStimulus { topic, .. } => assert_eq!(topic, "activator"),
-
-
-
-                    Mutation::AddSpike { .. } => (),
-
-
-
-                    Mutation::ChangeReproductionRate { .. } => (),
-
-
-
-                    Mutation::ChangeThreatProfile { .. } => (),
-
-
-
-                    Mutation::SwapStimulus { .. } => (),
-
-
-
-                    Mutation::ChangeThreatSpikeTime { .. } => (),
-
-
-
-                    Mutation::ChangeInitialCellCount { .. } => (),
-
-
-
-                    _ => panic!("Unexpected mutation type for stagnating lineage: {:?}", mutation),
-
-
-
-                }
-
-
-
-        let mut non_stagnating_history = HashMap::new();
-
-        non_stagnating_history.insert(
-
-            "improving_lineage".to_string(),
-
-            vec![0.4, 0.5, 0.6],
-
-        );
-
-        let mutation = recommend_targeted_mutation(&non_stagnating_history, &mut rng);
-
-        assert!(mutation.is_none());
-
-    }
-
-
-
-    #[test]
-
     fn perform_crossover_creates_child() {
-
         let parent1_stimulus_file = NamedTempFile::new().unwrap();
-
         let parent2_stimulus_file = NamedTempFile::new().unwrap();
 
-
-
         let parent1_stimulus_path = parent1_stimulus_file.path().to_str().unwrap().to_string();
-
         let parent2_stimulus_path = parent2_stimulus_file.path().to_str().unwrap().to_string();
 
-
-
         let parent1_outcome = AttackOutcome {
-
-                        candidate: AttackCandidate {
-
-                            id: "parent1".to_string(),
-
-                            scenario_ref: "scenario1.yaml".to_string(),
-
-                            stimulus_ref: Some(parent1_stimulus_path),
-
-                            generation: 1,
-
-                            parent_id: None,
-
-                            mutation: Some(Mutation::AddSpike {
-
-                                step: 10,
-
-                                intensity: 0.5,
-
-                            }),
-
-                            refinement_active_for: 0,
-
-                        },
-
-            fitness_score: 0.7,
-
-            breach_observed: true,
-
-            notes: None,
-
-            statistics: RunStatistics {
-
-                step_count: 1,
-
-                avg_threat: 0.1,
-
-                max_threat: 0.2,
-
-                avg_cell_count: 1.0,
-
-                min_cell_count: 1,
-
-                max_cell_count: 1,
-
-                total_replications: 0,
-
-                total_signals: 0,
-
-                total_lineage_shifts: 0,
-
-                total_stimulus: 0.0,
-
-                signals_by_topic: HashMap::new(),
-
-                lineage_by_type: HashMap::new(),
-
-                stimuli_by_topic: HashMap::new(),
-
+            candidate: AttackCandidate {
+                id: "parent1".to_string(),
+                scenario_ref: "scenario1.yaml".to_string(),
+                stimulus_ref: Some(parent1_stimulus_path),
+                generation: 1,
+                parent_id: None,
+                mutation: Some(Mutation::AddSpike {
+                    step: 10,
+                    intensity: 0.5,
+                }),
             },
-
+            fitness_score: 0.7,
+            breach_observed: true,
+            notes: None,
+            statistics: RunStatistics {
+                step_count: 1,
+                avg_threat: 0.1,
+                max_threat: 0.2,
+                avg_cell_count: 1.0,
+                min_cell_count: 1,
+                max_cell_count: 1,
+                total_replications: 0,
+                total_signals: 0,
+                total_lineage_shifts: 0,
+                total_stimulus: 0.0,
+                signals_by_topic: HashMap::new(),
+                lineage_by_type: HashMap::new(),
+                stimuli_by_topic: HashMap::new(),
+            },
         };
-
-
 
         let parent2_outcome = AttackOutcome {
-
-                        candidate: AttackCandidate {
-
-                            id: "parent2".to_string(),
-
-                            scenario_ref: "scenario2.yaml".to_string(),
-
-                            stimulus_ref: Some(parent2_stimulus_path),
-
-                            generation: 2,
-
-                            parent_id: None,
-
-                            mutation: Some(Mutation::IncreaseStimulus {
-
-                                topic: "activator".to_string(),
-
-                                factor: 1.2,
-
-                            }),
-
-                            refinement_active_for: 0,
-
-                        },
-
-            fitness_score: 0.8,
-
-            breach_observed: true,
-
-            notes: None,
-
-            statistics: RunStatistics {
-
-                step_count: 1,
-
-                avg_threat: 0.1,
-
-                max_threat: 0.2,
-
-                avg_cell_count: 1.0,
-
-                min_cell_count: 1,
-
-                max_cell_count: 1,
-
-                total_replications: 0,
-
-                total_signals: 0,
-
-                total_lineage_shifts: 0,
-
-                total_stimulus: 0.0,
-
-                signals_by_topic: HashMap::new(),
-
-                lineage_by_type: HashMap::new(),
-
-                stimuli_by_topic: HashMap::new(),
-
+            candidate: AttackCandidate {
+                id: "parent2".to_string(),
+                scenario_ref: "scenario2.yaml".to_string(),
+                stimulus_ref: Some(parent2_stimulus_path),
+                generation: 2,
+                parent_id: None,
+                mutation: Some(Mutation::IncreaseStimulus {
+                    topic: "activator".to_string(),
+                    factor: 1.2,
+                }),
             },
-
+            fitness_score: 0.8,
+            breach_observed: true,
+            notes: None,
+            statistics: RunStatistics {
+                step_count: 1,
+                avg_threat: 0.1,
+                max_threat: 0.2,
+                avg_cell_count: 1.0,
+                min_cell_count: 1,
+                max_cell_count: 1,
+                total_replications: 0,
+                total_signals: 0,
+                total_lineage_shifts: 0,
+                total_stimulus: 0.0,
+                signals_by_topic: HashMap::new(),
+                lineage_by_type: HashMap::new(),
+                stimuli_by_topic: HashMap::new(),
+            },
         };
 
-
-
         let mut rng = rand::thread_rng();
-
         let artifact_dir = tempdir().expect("failed to create temp dir");
-
         let child = perform_crossover(
-
             &parent1_outcome,
-
             &parent2_outcome,
-
             &mut rng,
-
             artifact_dir.path(),
-
             &CrossoverStrategy::Uniform,
-
         )
-
-        .expect("crossover should succeed");
-
-
-
-        assert!(child.id.starts_with("crossover-"));
-
-        assert_eq!(child.id.len(), "crossover-".len() + 8); // "crossover-" prefix + 8 random chars
+        .expect("crossover failed");
 
         assert_eq!(child.scenario_ref, "scenario1.yaml");
-
+        assert!(child.stimulus_ref.is_some());
         assert_eq!(child.generation, 3);
-
-        assert!(child.parent_id.is_some());
-
-        let parent_id_str = child.parent_id.unwrap();
-
-        assert_eq!(parent_id_str, "pare-pare");
-
+        assert!(child.id.starts_with("crossover-parent1-parent2-gen3"));
         assert!(child.mutation.is_some());
-
     }
 
-
-
     #[test]
-
     fn test_uniform_crossover_stimulus() {
-
-        let mut rng = rand::thread_rng();
-
         let mut parent1_commands = BTreeMap::new();
-
-        parent1_commands.insert(1, vec![StimulusCommand { step: 1, topic: "topic1".to_string(), value: 0.5 }]);
-
-        parent1_commands.insert(2, vec![StimulusCommand { step: 2, topic: "topic2".to_string(), value: 0.5 }]);
-
+        parent1_commands.insert(
+            0,
+            vec![StimulusCommand {
+                step: 0,
+                topic: "a".to_string(),
+                value: 1.0,
+            }],
+        );
         let parent1 = StimulusSchedule::new(parent1_commands, None);
 
-
-
         let mut parent2_commands = BTreeMap::new();
-
-        parent2_commands.insert(2, vec![StimulusCommand { step: 2, topic: "topic3".to_string(), value: 0.5 }]);
-
-        parent2_commands.insert(3, vec![StimulusCommand { step: 3, topic: "topic4".to_string(), value: 0.5 }]);
-
+        parent2_commands.insert(
+            0,
+            vec![StimulusCommand {
+                step: 0,
+                topic: "b".to_string(),
+                value: 2.0,
+            }],
+        );
         let parent2 = StimulusSchedule::new(parent2_commands, None);
 
-
-
+        let mut rng = rand::thread_rng();
         let child = uniform_crossover_stimulus(&parent1, &parent2, &mut rng);
 
-
-
-        assert!(child.commands.contains_key(&1));
-
-        assert!(child.commands.contains_key(&2));
-
-        assert!(child.commands.contains_key(&3));
-
+        assert_eq!(child.commands.len(), 1);
+        let child_command = &child.commands.get(&0).unwrap()[0];
+        assert!(child_command.topic == "a" || child_command.topic == "b");
     }
 
-
-
     #[test]
-
-    fn test_two_point_crossover_stimulus() {
-
-        let mut rng = rand::thread_rng();
-
-        let mut parent1_commands = BTreeMap::new();
-
-        parent1_commands.insert(1, vec![StimulusCommand { step: 1, topic: "p1_topic1".to_string(), value: 0.5 }]);
-
-        parent1_commands.insert(2, vec![StimulusCommand { step: 2, topic: "p1_topic2".to_string(), value: 0.5 }]);
-
-        parent1_commands.insert(3, vec![StimulusCommand { step: 3, topic: "p1_topic3".to_string(), value: 0.5 }]);
-
-        parent1_commands.insert(4, vec![StimulusCommand { step: 4, topic: "p1_topic4".to_string(), value: 0.5 }]);
-
-        let parent1 = StimulusSchedule::new(parent1_commands, None);
-
-
-
-        let mut parent2_commands = BTreeMap::new();
-
-        parent2_commands.insert(1, vec![StimulusCommand { step: 1, topic: "p2_topic1".to_string(), value: 0.5 }]);
-
-        parent2_commands.insert(2,vec![StimulusCommand { step: 2, topic: "p2_topic2".to_string(), value: 0.5 }]);
-
-        parent2_commands.insert(3,vec![StimulusCommand { step: 3, topic: "p2_topic3".to_string(), value: 0.5 }]);
-
-        parent2_commands.insert(4,vec![StimulusCommand { step: 4, topic: "p2_topic4".to_string(), value: 0.5 }]);
-
-        let parent2 = StimulusSchedule::new(parent2_commands, None);
-
-
-
-        let child = two_point_crossover_stimulus(&parent1, &parent2, &mut rng);
-
-
-
-        // This is a probabilistic test. We can't know the exact output,
-
-        // but we can check if the structure is valid.
-
-        assert_eq!(child.commands.len(), 4);
-
-        for i in 1..=4 {
-
-            assert!(child.commands.contains_key(&i));
-
-        }
-
-    }
-
-
-
-    #[test]
-
     fn test_perform_mutation() {
-
         let stats = RunStatistics {
-
             step_count: 1,
-
             avg_threat: 0.1,
-
             max_threat: 0.2,
-
             avg_cell_count: 1.0,
-
             min_cell_count: 1,
-
             max_cell_count: 1,
-
             total_replications: 0,
-
             total_signals: 0,
-
             total_lineage_shifts: 0,
-
             total_stimulus: 0.0,
-
             signals_by_topic: HashMap::new(),
-
             lineage_by_type: HashMap::new(),
-
             stimuli_by_topic: HashMap::new(),
-
         };
-
         let mut rng = rand::thread_rng();
-
-                        let mutation = perform_mutation(
-
-                            &EvolutionConfig::default_smoke_test(),
-
-                            &MutationStrategy::Random,
-
-                            &stats,
-
-                            0.5,
-
-                            false,
-
-                            &mut rng,
-
-                            0,
-
-                            0,
-
-                            &HashMap::new(),
-
-                            &mut 0,
-
-                        );
-
+        let mutation = perform_mutation(
+            &MutationStrategy::Random,
+            &stats,
+            0.5,
+            false,
+            &mut rng,
+        );
         assert!(mutation.is_some());
-
     }
-
-
-
-        #[test]
-
-
-
-        fn test_adaptive_mutation() {
-
-
-
-            let mut adaptive_mutation = AdaptiveMutation::new();
-
-
-
-            let mut config = EvolutionConfig::default_smoke_test();
-
-
-
-    
-
-
-
-            // Run with decreasing fitness
-
-
-
-            for i in 0..4 {
-
-
-
-                let fitness = 0.5 - i as f32 * 0.1;
-
-
-
-                adaptive_mutation.fitness_history.push(fitness);
-
-
-
-                adaptive_mutation.adapt(&mut config);
-
-
-
-            }
-
-
-
-    
-
-
-
-            assert!(config.mutation_rate > 0.8);
-
-
-
-            assert!(config.mutation_strength > 1.5);
-
-
-
-    
-
-
-
-            // Run with increasing fitness
-
-
-
-            for i in 0..3 {
-
-
-
-                let fitness = 0.5 + i as f32 * 0.1;
-
-
-
-                adaptive_mutation.fitness_history.push(fitness);
-
-
-
-                adaptive_mutation.adapt(&mut config);
-
-
-
-            }
-
-
-
-    
-
-
-
-            assert!(config.mutation_rate < 0.8);
-
-
-
-            assert!(config.mutation_strength < 1.5);
-
-
-
-        }
-
-
 
     #[derive(Serialize)]
-
     struct TestRow {
-
         step: u32,
-
         threat_score: f32,
-
         cell_count: u32,
-
         replications: u32,
-
         signals_total: u32,
-
         lineage_shifts_total: u32,
-
         stimulus_total: f32,
-
         top_signal_topic: String,
-
         top_signal_count: u32,
-
         top_lineage: String,
-
         top_lineage_count: u32,
-
         signals_by_topic: String,
-
         lineage_shifts_by_lineage: String,
-
         stimulus_by_topic: String,
-
     }
-
-
 
     impl TestRow {
-
         fn new(
-
             step: u32,
-
             threat_score: f32,
-
             cell_count: u32,
-
             replications: u32,
-
             signals_map: &serde_json::Value,
-
             lineage_map: &serde_json::Value,
-
             stimulus_map: &serde_json::Value,
-
             signals_total: u32,
-
             lineage_total: u32,
-
             stimulus_total: f32,
-
         ) -> Self {
-
             let (signal_topic, signal_count) = top_from_value(signals_map, "");
-
             let (lineage_topic, lineage_count) = top_from_value(lineage_map, "");
-
             Self {
-
                 step,
-
                 threat_score,
-
                 cell_count,
-
                 replications,
-
                 signals_total,
-
                 lineage_shifts_total: lineage_total,
-
                 stimulus_total,
-
                 top_signal_topic: signal_topic,
-
                 top_signal_count: signal_count,
-
                 top_lineage: lineage_topic,
-
                 top_lineage_count: lineage_count,
-
                 signals_by_topic: signals_map.to_string(),
-
                 lineage_shifts_by_lineage: lineage_map.to_string(),
-
                 stimulus_by_topic: stimulus_map.to_string(),
-
             }
-
         }
-
     }
-
-
 
     fn top_from_value(value: &serde_json::Value, default: &str) -> (String, u32) {
-
         match value {
-
             serde_json::Value::Object(map) => map
-
                 .iter()
-
                 .max_by(|a, b| a.1.as_u64().cmp(&b.1.as_u64()))
-
                 .map(|(k, v)| (k.clone(), v.as_u64().unwrap_or(0) as u32))
-
                 .unwrap_or_else(|| (default.to_string(), 0)),
-
             _ => (default.to_string(), 0),
-
         }
-
     }
-
-
 
     fn serialize_rows(rows: Vec<TestRow>) -> Vec<u8> {
-
         let mut writer = csv::Writer::from_writer(vec![]);
-
         for row in rows {
-
             writer.serialize(&row).expect("serialize row");
-
         }
-
         writer.into_inner().expect("extract writer")
-
     }
-
-
 
     fn analyze_metrics_csv_from_reader<R: Read>(
-
         reader: R,
-
     ) -> Result<HarnessAnalysis, HarnessError> {
-
-        let metrics = load_step_metrics_from_csv(reader)?;
-
-        let stats = build_statistics_from_steps(&metrics)?;
-
+        let steps = load_step_metrics_from_csv(reader)?;
+        let stats = build_statistics_from_steps(&steps)?;
         Ok(analyze_run_statistics(stats))
-
     }
-
-
-
-    #[test]
-
-    fn test_change_reproduction_rate_mutation() {
-
-        let mut scenario_config = config::ScenarioConfig::default();
-
-        scenario_config.cell_reproduction_rate = 1.0; // Set initial value
-
-
-
-        let mutation = Mutation::ChangeReproductionRate { factor: 1.5 };
-
-        scenario_config.apply_mutation(&mutation);
-
-        assert!((scenario_config.cell_reproduction_rate - 1.5).abs() < f32::EPSILON);
-
-
-
-        let mutation = Mutation::ChangeReproductionRate { factor: 0.5 };
-
-        scenario_config.apply_mutation(&mutation);
-
-        assert!((scenario_config.cell_reproduction_rate - 0.75).abs() < f32::EPSILON);
-
-    }
-
 }

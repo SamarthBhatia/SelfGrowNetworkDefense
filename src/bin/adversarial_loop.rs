@@ -1,7 +1,7 @@
 use morphogenetic_security::MorphogeneticApp;
 use morphogenetic_security::adversarial::{
     AdversarialHarness, AttackCandidate, EvolutionConfig, ExecutionReport, HarnessError,
-    MutationStrategy, StepMetrics,
+    StepMetrics,
 };
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
@@ -13,7 +13,6 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
-use std::str::FromStr;
 
 fn main() {
     if let Err(err) = run() {
@@ -38,7 +37,6 @@ fn run() -> Result<(), String> {
                 generation: 0,
                 parent_id: None,
                 mutation: None,
-                refinement_active_for: 0,
             });
         }
         println!(
@@ -141,10 +139,7 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
             .map(|harness| {
                                 if args.batch_size.is_some()
                                     || args.max_generations.is_some()
-                                    || args.elite_size.is_some()
                                     || args.crossover_rate.is_some()
-                                    || args.mutation_strategy.is_some()
-                                    || args.exploration_generations.is_some()
                                 {
                                     println!("[info] Existing harness loaded; configuration overrides ignored.");
                                 }
@@ -158,31 +153,13 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
                         if let Some(max_gen) = args.max_generations {
                             config.max_generations = max_gen;
                         }
-                        if let Some(size) = args.elite_size {
-                            config.elite_size = size;
-                        }
                         if let Some(rate) = args.crossover_rate {
                             config.crossover_rate = rate;
                         }
-                        if let Some(strategy) = &args.mutation_strategy {
-                            config.mutation_strategy = strategy.clone();
-                        }
-                        if let Some(generations) = args.exploration_generations {
-                            config.exploration_generations = generations;
-                        }
-                
-                        // Environment variable override for adaptive mutation
-                        if let Ok(val) = env::var("ADAPTIVE_MUTATION_FLAG") {
-                            if val == "true" {
-                                config.adaptive_mutation = true;
-                            } else if val == "false" {
-                                config.adaptive_mutation = false;
-                            }
-                        }
                 
                         println!(
-                            "[info] Initialising new harness with batch_size={} max_generations={} elite_size={} crossover_rate={} mutation_strategy={:?} adaptive_mutation={} exploration_generations={}",
-                            config.batch_size, config.max_generations, config.elite_size, config.crossover_rate, config.mutation_strategy, config.adaptive_mutation, config.exploration_generations
+                            "[info] Initialising new harness with batch_size={} max_generations={} crossover_rate={}",
+                            config.batch_size, config.max_generations, config.crossover_rate
                         );
                         Ok(AdversarialHarness::new(config))
                     }
@@ -380,12 +357,9 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut artifact_dir: PathBuf = PathBuf::from("target/adversarial_runs");
     let mut batch_size: Option<usize> = None;
     let mut max_generations: Option<u32> = None;
-    let mut elite_size: Option<usize> = None;
     let mut seeds: Vec<SeedCandidate> = Vec::new();
     let mut stimulus_path: Option<PathBuf> = None;
     let mut crossover_rate: Option<f32> = None;
-    let mut mutation_strategy: Option<MutationStrategy> = None;
-    let mut exploration_generations: Option<u32> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -429,16 +403,6 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Max generations must be a positive integer".to_string())?,
                 );
             }
-            "--elite-size" => {
-                let value = args
-                    .next()
-                    .ok_or_else(|| "Missing value for --elite-size".to_string())?;
-                elite_size = Some(
-                    value
-                        .parse::<usize>()
-                        .map_err(|_| "Elite size must be a positive integer".to_string())?,
-                );
-            }
             "--seed" => {
                 let value = args
                     .next()
@@ -461,25 +425,6 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Crossover rate must be a float".to_string())?,
                 );
             }
-            "--mutation-strategy" => {
-                let value = args
-                    .next()
-                    .ok_or_else(|| "Missing value for --mutation-strategy".to_string())?;
-                mutation_strategy = Some(
-                    MutationStrategy::from_str(&value)
-                        .map_err(|_| "Invalid mutation strategy".to_string())?,
-                );
-            }
-            "--exploration-generations" => {
-                let value = args
-                    .next()
-                    .ok_or_else(|| "Missing value for --exploration-generations".to_string())?;
-                exploration_generations = Some(
-                    value
-                        .parse::<u32>()
-                        .map_err(|_| "Exploration generations must be a positive integer".to_string())?,
-                );
-            }
             unknown => {
                 return Err(format!("Unknown argument `{unknown}`"));
             }
@@ -495,12 +440,9 @@ fn parse_args() -> Result<CliArgs, String> {
         artifact_dir,
         batch_size,
         max_generations,
-        elite_size,
         seeds,
         stimulus_path,
         crossover_rate,
-        mutation_strategy,
-        exploration_generations,
     })
 }
 
@@ -529,12 +471,9 @@ struct CliArgs {
     artifact_dir: PathBuf,
     batch_size: Option<usize>,
     max_generations: Option<u32>,
-    elite_size: Option<usize>,
     seeds: Vec<SeedCandidate>,
     stimulus_path: Option<PathBuf>,
     crossover_rate: Option<f32>,
-    mutation_strategy: Option<MutationStrategy>,
-    exploration_generations: Option<u32>,
 }
 
 struct SeedCandidate {
