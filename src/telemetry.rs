@@ -1,5 +1,6 @@
 //! Telemetry plumbing for observing morphogenetic dynamics.
 
+use crate::cellular::PopulationStats;
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufWriter, Write};
@@ -32,6 +33,7 @@ pub enum TelemetryEvent {
         step: u32,
         threat_score: f32,
         cell_count: usize,
+        population_stats: Option<PopulationStats>,
     },
 }
 

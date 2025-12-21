@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use rand::seq::SliceRandom;
 use rand::Rng;
 
+use crate::cellular::PopulationStats;
 use crate::config;
 use crate::config::ConfigError;
 use crate::stimulus::StimulusSchedule;
@@ -170,6 +171,7 @@ pub struct StepMetrics {
     pub signals_by_topic: HashMap<String, u32>,
     pub lineage_shifts_by_lineage: HashMap<String, u32>,
     pub stimulus_by_topic: HashMap<String, f32>,
+    pub population_stats: Option<PopulationStats>,
 }
 
 /// Rolling archive snapshot used for persistence.
@@ -846,12 +848,14 @@ pub fn write_step_metrics_csv<P: AsRef<Path>>(
         "signals_by_topic",
         "lineage_shifts_by_lineage",
         "stimulus_by_topic",
+        "population_stats",
     ])?;
 
     for step in steps {
         let signals_json = serde_json::to_string(&step.signals_by_topic)?;
         let lineage_json = serde_json::to_string(&step.lineage_shifts_by_lineage)?;
         let stimulus_json = serde_json::to_string(&step.stimulus_by_topic)?;
+        let population_stats_json = serde_json::to_string(&step.population_stats)?;
         let (top_signal_topic, top_signal_count) = top_u32(&step.signals_by_topic);
         let (top_lineage, top_lineage_count) = top_u32(&step.lineage_shifts_by_lineage);
 
@@ -871,6 +875,7 @@ pub fn write_step_metrics_csv<P: AsRef<Path>>(
             signals_json,
             lineage_json,
             stimulus_json,
+            population_stats_json,
         ])?;
     }
 
@@ -887,6 +892,11 @@ fn load_step_metrics_from_csv<R: Read>(reader: R) -> Result<Vec<StepMetrics>, Ha
         let signals_map = parse_u32_map(&row.signals_by_topic)?;
         let lineage_map = parse_u32_map(&row.lineage_shifts_by_lineage)?;
         let stimulus_map = parse_f32_map(&row.stimulus_by_topic)?;
+        let population_stats = if row.population_stats.is_empty() {
+            None
+        } else {
+            serde_json::from_str(&row.population_stats)?
+        };
 
         steps.push(StepMetrics {
             step: row.step,
@@ -900,6 +910,7 @@ fn load_step_metrics_from_csv<R: Read>(reader: R) -> Result<Vec<StepMetrics>, Ha
             signals_by_topic: signals_map,
             lineage_shifts_by_lineage: lineage_map,
             stimulus_by_topic: stimulus_map,
+            population_stats,
         });
     }
 
@@ -928,6 +939,8 @@ struct RawMetricsRow {
     signals_by_topic: String,
     lineage_shifts_by_lineage: String,
     stimulus_by_topic: String,
+    #[serde(default)]
+    population_stats: String,
 }
 
 fn build_statistics_from_steps(steps: &[StepMetrics]) -> Result<RunStatistics, HarnessError> {
@@ -1275,6 +1288,7 @@ mod tests {
                     signals_by_topic: HashMap::new(),
                     lineage_shifts_by_lineage: HashMap::new(),
                     stimulus_by_topic: HashMap::new(), // Make stimulus_by_topic empty
+                    population_stats: None,
                 }];
                 Ok(ExecutionReport {
                     steps,
@@ -1485,6 +1499,7 @@ mod tests {
             signals_by_topic: HashMap::from([("activator".into(), 1)]),
             lineage_shifts_by_lineage: HashMap::new(),
             stimulus_by_topic: HashMap::from([("activator".into(), 0.4)]),
+            population_stats: None,
         }];
 
         harness
@@ -1546,6 +1561,7 @@ mod tests {
                     signals_by_topic: HashMap::new(),
                     lineage_shifts_by_lineage: HashMap::new(),
                     stimulus_by_topic: HashMap::new(),
+                    population_stats: None,
                 }];
                 Ok(ExecutionReport {
                     steps,

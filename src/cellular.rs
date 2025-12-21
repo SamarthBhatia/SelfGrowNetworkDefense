@@ -1,16 +1,17 @@
 //! Cellular automaton primitives for morphogenetic security nodes.
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellEnvironment {
     pub local_threat_score: f32,
     pub neighbor_signals: HashMap<String, f32>,
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CellLineage {
     Stem,
     Firewall,
@@ -20,7 +21,7 @@ pub enum CellLineage {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellState {
     pub lineage: CellLineage,
     pub energy: f32,
@@ -29,7 +30,7 @@ pub struct CellState {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellGenome {
     pub threat_inhibitor_factor: f32,
     pub stress_decay: f32,
@@ -99,6 +100,49 @@ impl CellGenome {
         mutate_field(&mut self.encryption_cooperative_threshold);
         mutate_field(&mut self.encryption_energy_min);
         mutate_field(&mut self.signal_emission_threshold);
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PopulationStats {
+    pub avg_reproduction_threshold: f32,
+    pub avg_stress_sensitivity: f32,
+    pub avg_energy_recharge: f32,
+    pub avg_threat_inhibitor_factor: f32,
+    // Add other key stats as needed, keeping it concise for now
+}
+
+impl PopulationStats {
+    pub fn from_cells(cells: &[SecurityCell]) -> Self {
+        if cells.is_empty() {
+            return Self {
+                avg_reproduction_threshold: 0.0,
+                avg_stress_sensitivity: 0.0,
+                avg_energy_recharge: 0.0,
+                avg_threat_inhibitor_factor: 0.0,
+            };
+        }
+
+        let count = cells.len() as f32;
+        let mut sum_repro = 0.0;
+        let mut sum_stress = 0.0;
+        let mut sum_energy = 0.0;
+        let mut sum_inhib = 0.0;
+
+        for cell in cells {
+            sum_repro += cell.genome.reproduction_threshold;
+            sum_stress += cell.genome.stress_sensitivity;
+            sum_energy += cell.genome.energy_recharge;
+            sum_inhib += cell.genome.threat_inhibitor_factor;
+        }
+
+        Self {
+            avg_reproduction_threshold: sum_repro / count,
+            avg_stress_sensitivity: sum_stress / count,
+            avg_energy_recharge: sum_energy / count,
+            avg_threat_inhibitor_factor: sum_inhib / count,
+        }
     }
 }
 

@@ -83,15 +83,31 @@ testbed.
 - Refactored `SecurityCell` to use `CellGenome` and enabled genome mutation during replication.
 - Added `CellAction::Die` and `CellState.dead` to support cell death and natural selection.
 - Updated telemetry and metrics to track cell deaths.
+- Implemented `PopulationStats` to track average genome parameters (mutation drift) over time.
+- Integrated population statistics into telemetry and adversarial run metrics (CSV).
                                                                                                                                                        
 ### In Progress                                                                                                                                        
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-- Implement telemetry for genome statistics (e.g., average parameter values) to visualize evolutionary trends.
+- Create analysis script/notebook to visualize genome drift (population stats) from the new telemetry data.
 - Explore "Adaptive Topology Management" (neighbor selection strategies).
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-21 — Session 48
+- **Focus**: Implement telemetry for tracking evolutionary genome drift.
+- **Actions**:
+    - Defined `PopulationStats` struct in `src/cellular.rs` to aggregate average genome parameters.
+    - Updated `TelemetryEvent::StepSummary` and `StepMetrics` to include optional population statistics.
+    - Modified `MorphogeneticApp::step` to calculate and record population stats periodically (every 10 steps).
+    - Updated `adversarial.rs` to persist population stats as a JSON column in the step metrics CSV.
+    - Verified with `cargo test`.
+    - Fixed a bug where `CellGenome` default values were zeroed out due to incorrect `derive(Default)` usage, restoring the manual implementation.
+- **Open Questions**:
+    - How best to visualize the multi-dimensional genome drift? (Maybe PCA or just line plots of key parameters?)
+- **Next Session Starting Point**:
+    - Create a script to parse the new CSVs and plot the evolution of parameters like `reproduction_threshold` and `threat_inhibitor_factor`.
+
 ### 2025-12-21 — Session 47
 - **Focus**: Implement foundational Genetic Regulatory Network (GRN) and Evolutionary Selection for defense.
 - **Actions**:

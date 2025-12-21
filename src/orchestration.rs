@@ -1,6 +1,6 @@
 //! High-level orchestration for the morphogenetic security system.
 
-use crate::cellular::{CellAction, CellEnvironment, SecurityCell};
+use crate::cellular::{CellAction, CellEnvironment, PopulationStats, SecurityCell};
 use crate::signaling::{Signal, SignalBus};
 use crate::telemetry::{TelemetryEvent, TelemetrySink};
 use std::collections::HashMap;
@@ -55,12 +55,19 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         self.cells.retain(|c| !c.state.dead);
 
         let cell_count = self.cells.len();
+        let population_stats = if step_index % 10 == 0 || cell_count < 100 {
+            Some(PopulationStats::from_cells(&self.cells))
+        } else {
+            None
+        };
+
         self.telemetry.record(
             SystemTime::now(),
             TelemetryEvent::StepSummary {
                 step: step_index,
                 threat_score,
                 cell_count,
+                population_stats,
             },
         );
     }

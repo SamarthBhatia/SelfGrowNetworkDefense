@@ -265,6 +265,7 @@ fn simulate_candidate(
         let mut lineage_by_lineage: HashMap<String, u32> = HashMap::new();
         let mut summary_threat: Option<f32> = None;
         let mut summary_cells: Option<u32> = None;
+        let mut summary_population_stats: Option<morphogenetic_security::cellular::PopulationStats> = None;
 
         for snapshot in new_events {
             match &snapshot.event {
@@ -287,10 +288,12 @@ fn simulate_candidate(
                 TelemetryEvent::StepSummary {
                     threat_score,
                     cell_count,
+                    population_stats,
                     ..
                 } => {
                     summary_threat = Some(*threat_score);
                     summary_cells = Some(*cell_count as u32);
+                    summary_population_stats = population_stats.clone();
                 }
                 TelemetryEvent::Scenario { .. } => {}
             }
@@ -320,6 +323,7 @@ fn simulate_candidate(
             signals_by_topic,
             lineage_shifts_by_lineage: lineage_by_lineage,
             stimulus_by_topic,
+            population_stats: summary_population_stats,
         });
     }
 
