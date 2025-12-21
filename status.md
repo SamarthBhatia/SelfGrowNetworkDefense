@@ -85,15 +85,27 @@ testbed.
 - Updated telemetry and metrics to track cell deaths.
 - Implemented `PopulationStats` to track average genome parameters (mutation drift) over time.
 - Integrated population statistics into telemetry and adversarial run metrics (CSV).
+- Created `scripts/visualize_genome_drift.py` to plot evolutionary trends of genome parameters from simulation artifacts.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-- Create analysis script/notebook to visualize genome drift (population stats) from the new telemetry data.
-- Explore "Adaptive Topology Management" (neighbor selection strategies).
+- Implement basic graph topology for cell signaling (moving away from global broadcast).
+- Enable adaptive topology changes (dynamic neighbor selection).
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-21 — Session 49
+- **Focus**: Visualize evolutionary genome drift.
+- **Actions**:
+    - Created `scripts/visualize_genome_drift.py` to parse `population_stats` from `step_metrics.csv` and generate trend plots.
+    - Executed a 5-generation adversarial simulation (`drift_data`) to generate test data.
+    - Verified the script produces `genome_drift_trends.png` and `reproduction_threshold_drift.png`.
+- **Open Questions**:
+    - Does the current random mutation strategy produce enough directional pressure, or do we need more targeted mutations for defense genes?
+- **Next Session Starting Point**:
+    - Begin implementing "Adaptive Topology Management" by replacing the global signal bus with a graph-based neighbor system in `src/orchestration.rs`.
+
 ### 2025-12-21 — Session 48
 - **Focus**: Implement telemetry for tracking evolutionary genome drift.
 - **Actions**:
