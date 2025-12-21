@@ -51,6 +51,9 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
             self.handle_action(index, action);
         }
 
+        // Remove dead cells
+        self.cells.retain(|c| !c.state.dead);
+
         let cell_count = self.cells.len();
         self.telemetry.record(
             SystemTime::now(),
@@ -66,7 +69,11 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         match action {
             CellAction::Idle => {}
             CellAction::Replicate(child_id) => {
-                let child = SecurityCell::new(child_id.clone());
+                let mut child = SecurityCell::new(child_id.clone());
+                // Inherit genome from parent
+                child.genome = self.cells[index].genome.clone();
+                child.genome.mutate();
+
                 let parent_id = self.cells[index].id.clone();
                 self.telemetry.record(
                     SystemTime::now(),
@@ -103,6 +110,17 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                         value,
                     },
                 );
+            }
+            CellAction::Die => {
+                if let Some(cell) = self.cells.get_mut(index) {
+                    cell.state.dead = true;
+                    self.telemetry.record(
+                        SystemTime::now(),
+                        TelemetryEvent::CellDied {
+                            cell_id: cell.id.clone(),
+                        },
+                    );
+                }
             }
         }
     }

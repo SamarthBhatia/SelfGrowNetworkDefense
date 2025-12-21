@@ -17,7 +17,7 @@ fn main() {
     let mut cells = Vec::with_capacity(cell_count);
     for idx in 0..cell_count {
         let mut cell = SecurityCell::new(format!("seed-{idx}"));
-        cell.reproduction_threshold = config.threat_profile.spike_threshold;
+        cell.genome.reproduction_threshold = config.threat_profile.spike_threshold;
         cells.push(cell);
     }
 

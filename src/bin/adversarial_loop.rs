@@ -222,7 +222,7 @@ fn simulate_candidate(
     let mut cells = Vec::with_capacity(cell_count);
     for idx in 0..cell_count {
         let mut cell = SecurityCell::new(format!("seed-{idx}"));
-        cell.reproduction_threshold = scenario_config.threat_profile.spike_threshold;
+        cell.genome.reproduction_threshold = scenario_config.threat_profile.spike_threshold;
         cells.push(cell);
     }
 
@@ -260,6 +260,7 @@ fn simulate_candidate(
         let new_events = &events[before..];
 
         let mut replications = 0u32;
+        let mut deaths = 0u32;
         let mut signals_by_topic: HashMap<String, u32> = HashMap::new();
         let mut lineage_by_lineage: HashMap<String, u32> = HashMap::new();
         let mut summary_threat: Option<f32> = None;
@@ -269,6 +270,9 @@ fn simulate_candidate(
             match &snapshot.event {
                 TelemetryEvent::CellReplicated { .. } => {
                     replications += 1;
+                }
+                TelemetryEvent::CellDied { .. } => {
+                    deaths += 1;
                 }
                 TelemetryEvent::SignalEmitted {
                     topic, ..
@@ -309,6 +313,7 @@ fn simulate_candidate(
             threat_score,
             cell_count,
             replications,
+            deaths,
             signals_total,
             lineage_shifts_total: lineage_total,
             stimulus_total,

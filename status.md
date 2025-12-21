@@ -19,7 +19,7 @@ estation.
 4. **Controlled Evolution Validation (≈0.5 months)**: Evolve attack suites, collect metrics, and showcase adaptive defense growth on the physical IoT t
 testbed.                                                                                                                                                
                                                                                                                                                        
-## Current State (2025-10-30 UTC)                                                                                                                      
+## Current State (2025-12-21 UTC)                                                                                                                      
 ### Completed                                                                                                                                          
 - Archived the original prototype into `legacy_project_backup/` to preserve prior work while starting a clean rebuild.                                 
 - Captured contributor guidance in `legacy_project_backup/AGENTS.md` for reference.                                                                    
@@ -79,13 +79,35 @@ testbed.
 - Updated `AdversarialHarness::from_state` to load the `lineage_fitness_history`.
 - Created `scripts/run_targeted_mutation_analysis.sh` to compare `Random` and `Targeted` mutation strategies.
 - Updated `lineage_analysis.ipynb` to load and visualize the results of the targeted mutation analysis.
+- Implemented `CellGenome` struct in `src/cellular.rs` to enable genetic regulation of cell parameters.
+- Refactored `SecurityCell` to use `CellGenome` and enabled genome mutation during replication.
+- Added `CellAction::Die` and `CellState.dead` to support cell death and natural selection.
+- Updated telemetry and metrics to track cell deaths.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
+- Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-- Await user feedback after they have reviewed the generated plot at `docs/images/fitness_comparison.png`.
+- Implement telemetry for genome statistics (e.g., average parameter values) to visualize evolutionary trends.
+- Explore "Adaptive Topology Management" (neighbor selection strategies).
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-21 — Session 47
+- **Focus**: Implement foundational Genetic Regulatory Network (GRN) and Evolutionary Selection for defense.
+- **Actions**:
+    - Introduced `CellGenome` struct in `src/cellular.rs` to encapsulate cell parameters (genes).
+    - Refactored `SecurityCell` to use `CellGenome` instead of hardcoded constants.
+    - Implemented `CellGenome::mutate` with random variation (5% chance per gene).
+    - Updated `MorphogeneticApp` to inherit genome with mutation during replication.
+    - Added `CellAction::Die` and `CellState.dead` to handle cell death when energy depletes, enabling natural selection.
+    - Updated `TelemetryEvent` (added `CellDied`), `StepMetrics`, and `RunStatistics` (added `deaths`) to track cell deaths.
+    - Verified all changes with `cargo test`.
+- **Open Questions**:
+    - How quickly does the population adapt to a specific threat profile?
+    - Do we need "sexual reproduction" (crossover) for cells, or is asexual mutation enough?
+- **Next Session Starting Point**:
+    - Implement genome statistics telemetry to verify that evolution is actually happening (parameters shifting towards optimal values).
+
 ### 2025-12-02 — Session 46
 - **Focus**: Re-run analysis with the new hybrid strategy and elitism.
 - **Actions**:

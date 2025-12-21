@@ -138,6 +138,7 @@ pub struct RunStatistics {
     pub min_cell_count: usize,
     pub max_cell_count: usize,
     pub total_replications: u32,
+    pub total_deaths: u32,
     pub total_signals: u32,
     pub total_lineage_shifts: u32,
     pub total_stimulus: f32,
@@ -162,6 +163,7 @@ pub struct StepMetrics {
     pub threat_score: f32,
     pub cell_count: u32,
     pub replications: u32,
+    pub deaths: u32,
     pub signals_total: u32,
     pub lineage_shifts_total: u32,
     pub stimulus_total: f32,
@@ -833,6 +835,7 @@ pub fn write_step_metrics_csv<P: AsRef<Path>>(
         "threat_score",
         "cell_count",
         "replications",
+        "deaths",
         "signals_total",
         "lineage_shifts_total",
         "stimulus_total",
@@ -857,6 +860,7 @@ pub fn write_step_metrics_csv<P: AsRef<Path>>(
             format!("{:.6}", step.threat_score),
             step.cell_count.to_string(),
             step.replications.to_string(),
+            step.deaths.to_string(),
             step.signals_total.to_string(),
             step.lineage_shifts_total.to_string(),
             format!("{:.6}", step.stimulus_total),
@@ -889,6 +893,7 @@ fn load_step_metrics_from_csv<R: Read>(reader: R) -> Result<Vec<StepMetrics>, Ha
             threat_score: row.threat_score,
             cell_count: row.cell_count,
             replications: row.replications,
+            deaths: row.deaths,
             signals_total: row.signals_total,
             lineage_shifts_total: row.lineage_shifts_total,
             stimulus_total: row.stimulus_total,
@@ -907,6 +912,8 @@ struct RawMetricsRow {
     threat_score: f32,
     cell_count: u32,
     replications: u32,
+    #[serde(default)]
+    deaths: u32,
     signals_total: u32,
     lineage_shifts_total: u32,
     stimulus_total: f32,
@@ -940,6 +947,7 @@ struct StatsAccumulator {
     min_cell: Option<u32>,
     max_cell: u32,
     total_replications: u32,
+    total_deaths: u32,
     total_signals: u32,
     total_lineage_shifts: u32,
     total_stimulus: f32,
@@ -964,6 +972,7 @@ impl StatsAccumulator {
         });
         self.max_cell = self.max_cell.max(step.cell_count);
         self.total_replications += step.replications;
+        self.total_deaths += step.deaths;
         self.total_signals += step.signals_total;
         self.total_lineage_shifts += step.lineage_shifts_total;
         self.total_stimulus += step.stimulus_total;
@@ -989,6 +998,7 @@ impl StatsAccumulator {
             min_cell_count: min_cell,
             max_cell_count: max_cell,
             total_replications: self.total_replications,
+            total_deaths: self.total_deaths,
             total_signals: self.total_signals,
             total_lineage_shifts: self.total_lineage_shifts,
             total_stimulus: self.total_stimulus,
@@ -1257,7 +1267,8 @@ mod tests {
                     step: 1, // Changed step to 1 to influence lineage_pressure calculation
                     threat_score: 1.0, // Increased threat to make fitness_score > 0.4
                     cell_count: 10,
-                    replications: 0, // Set replications to 0 to make reproduction_rate 0
+                    replications: 0,
+                    deaths: 0,
                     signals_total: 0,
                     lineage_shifts_total: 1, // Set lineage_shifts_total to 1 to make lineage_pressure >= 0.2
                     stimulus_total: 0.0,
@@ -1467,6 +1478,7 @@ mod tests {
             threat_score: 0.5,
             cell_count: 4,
             replications: 1,
+            deaths: 0,
             signals_total: 1,
             lineage_shifts_total: 0,
             stimulus_total: 0.4,
@@ -1527,6 +1539,7 @@ mod tests {
                     threat_score: base_threat,
                     cell_count: 4,
                     replications: 1,
+                    deaths: 0,
                     signals_total: 0,
                     lineage_shifts_total: 0,
                     stimulus_total: 0.0,
@@ -1568,6 +1581,7 @@ mod tests {
             min_cell_count: 1,
             max_cell_count: 1,
             total_replications: 0,
+            total_deaths: 0,
             total_signals: 0,
             total_lineage_shifts: 0,
             total_stimulus: 0.0,
@@ -1619,6 +1633,7 @@ mod tests {
             min_cell_count: 1,
             max_cell_count: 1,
             total_replications: 0,
+            total_deaths: 0,
             total_signals: 0,
             total_lineage_shifts: 0,
             total_stimulus: 0.0,
@@ -1656,6 +1671,7 @@ mod tests {
             min_cell_count: 9,
             max_cell_count: 12,
             total_replications: 8,
+            total_deaths: 0,
             total_signals: 24,
             total_lineage_shifts: 0,
             total_stimulus: 0.6,
@@ -1694,6 +1710,7 @@ mod tests {
             min_cell_count: 8,
             max_cell_count: 12,
             total_replications: 9,
+            total_deaths: 0,
             total_signals: 12,
             total_lineage_shifts: 2,
             total_stimulus: 0.0,
@@ -1727,6 +1744,7 @@ mod tests {
             min_cell_count: 9,
             max_cell_count: 14,
             total_replications: 6,
+            total_deaths: 0,
             total_signals: 18,
             total_lineage_shifts: 8,
             total_stimulus: 0.5,
@@ -1788,6 +1806,7 @@ mod tests {
                 min_cell_count: 1,
                 max_cell_count: 1,
                 total_replications: 0,
+                total_deaths: 0,
                 total_signals: 0,
                 total_lineage_shifts: 0,
                 total_stimulus: 0.0,
@@ -1820,6 +1839,7 @@ mod tests {
                 min_cell_count: 1,
                 max_cell_count: 1,
                 total_replications: 0,
+                total_deaths: 0,
                 total_signals: 0,
                 total_lineage_shifts: 0,
                 total_stimulus: 0.0,
@@ -1889,6 +1909,7 @@ mod tests {
             min_cell_count: 1,
             max_cell_count: 1,
             total_replications: 0,
+            total_deaths: 0,
             total_signals: 0,
             total_lineage_shifts: 0,
             total_stimulus: 0.0,

@@ -25,6 +25,9 @@ pub enum TelemetryEvent {
         topic: String,
         value: f32,
     },
+    CellDied {
+        cell_id: String,
+    },
     StepSummary {
         step: u32,
         threat_score: f32,
