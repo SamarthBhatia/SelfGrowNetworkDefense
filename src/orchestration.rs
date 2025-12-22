@@ -119,6 +119,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
             let environment = CellEnvironment {
                 local_threat_score: threat_score,
                 neighbor_signals,
+                detected_neighbors: self.neighbors.get(&cell.id).cloned().unwrap_or_default(),
             };
             let action = cell.tick(&environment);
             actions.push((index, action));
@@ -230,6 +231,32 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                         },
                     );
                 }
+            }
+            CellAction::Disconnect(target_id) => {
+                if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
+                     let cell_id = self.cells[index].id.clone();
+                     // Remove forward link
+                     if let Some(neighbors) = self.neighbors.get_mut(&cell_id) {
+                         if let Some(pos) = neighbors.iter().position(|x| x == &target_id) {
+                             neighbors.remove(pos);
+                         }
+                     }
+                     // Remove backward link (undirected graph assumption for now, or just symmetric)
+                     if let Some(neighbors) = self.neighbors.get_mut(&target_id) {
+                         if let Some(pos) = neighbors.iter().position(|x| x == &cell_id) {
+                             neighbors.remove(pos);
+                         }
+                     }
+                }
+            }
+            CellAction::Connect(target_id) => {
+                 if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
+                     let cell_id = self.cells[index].id.clone();
+                     // Add forward link
+                     self.neighbors.entry(cell_id.clone()).or_default().push(target_id.clone());
+                     // Add backward link
+                     self.neighbors.entry(target_id).or_default().push(cell_id);
+                 }
             }
         }
     }

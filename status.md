@@ -68,7 +68,7 @@ testbed.
 - Fixed a compilation error in the test suite by correctly instantiating `StimulusCommand`.
 - Added a `lineage_fitness_history` field to `AdversarialHarness` to track lineage fitness.
 - Updated `AdversarialHarness::record_outcome` to populate the `lineage_fitness_history`.
-- Added a `Targeted` variant to the `MutationStrategy` enum.
+- Added `Targeted` variant to the `MutationStrategy` enum.
 - Implemented `recommend_targeted_mutation` to identify and mutate stagnating lineages.
 - Updated `perform_mutation` to use the new targeted mutation strategy.
 - Added a unit test for `recommend_targeted_mutation`.
@@ -93,15 +93,36 @@ testbed.
     - Updated `handle_action` to manage topology on cell replication (child-parent connection) and death (cleanup).
     - Added `source` field to `Signal` for routing.
     - Verified with `test_graph_topology_isolation`.
+- Enabled Dynamic Topology Modification:
+    - Added `Connect` and `Disconnect` actions to `CellAction`.
+    - Updated `CellGenome` with `connection_cost` and `isolation_threshold`.
+    - Refactored `CellEnvironment` to expose `detected_neighbors` (list of neighbor IDs).
+    - Implemented `MorphogeneticApp::handle_action` to process `Connect` (bi-directional link) and `Disconnect` (remove link).
+    - Added logic to `SecurityCell::tick` to disconnect from neighbors when stress exceeds `isolation_threshold`.
+    - Verified with `cell_disconnects_under_extreme_stress` unit test.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-- Allow cells to dynamically modify the topology (Connect/Disconnect actions) for self-healing and isolation.
 - Visualize the topology evolution (e.g., using Graphviz or TUI).
+- Create a scenario where cells *must* disconnect from "infected" neighbors to survive.
                                                                                                                                                        
 ## Session Log                                                                                                                                         
+### 2025-12-22 — Session 51
+- **Focus**: Enable active topology remodeling (Disconnect/Connect).
+- **Actions**:
+    - Expanded `CellEnvironment` to provide `detected_neighbors`.
+    - Updated `CellGenome` with `isolation_threshold` and `connection_cost`.
+    - Added `Connect` and `Disconnect` variants to `CellAction`.
+    - Implemented "panic disconnect" logic in `SecurityCell::tick`: if stress > threshold, cut a link.
+    - Updated `MorphogeneticApp` to execute these topology changes.
+    - Verified with `cell_disconnects_under_extreme_stress` test.
+- **Open Questions**:
+    - How do we make `Connect` smart? (Currently unused in logic, though implemented in app).
+- **Next Session Starting Point**:
+    - Create a topology visualization tool or script to see these graphs in action.
+
 ### 2025-12-22 — Session 50
 - **Focus**: Implement Adaptive Topology Management (Graph-based signaling).
 - **Actions**:

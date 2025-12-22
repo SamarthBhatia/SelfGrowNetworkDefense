@@ -8,6 +8,7 @@ use std::collections::HashMap;
 pub struct CellEnvironment {
     pub local_threat_score: f32,
     pub neighbor_signals: HashMap<String, f32>,
+    pub detected_neighbors: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -47,6 +48,8 @@ pub struct CellGenome {
     pub encryption_cooperative_threshold: f32,
     pub encryption_energy_min: f32,
     pub signal_emission_threshold: f32,
+    pub connection_cost: f32,
+    pub isolation_threshold: f32,
 }
 
 impl Default for CellGenome {
@@ -67,6 +70,8 @@ impl Default for CellGenome {
             encryption_cooperative_threshold: 0.5,
             encryption_energy_min: 0.9,
             signal_emission_threshold: 0.4,
+            connection_cost: 0.1,
+            isolation_threshold: 0.85,
         }
     }
 }
@@ -100,6 +105,8 @@ impl CellGenome {
         mutate_field(&mut self.encryption_cooperative_threshold);
         mutate_field(&mut self.encryption_energy_min);
         mutate_field(&mut self.signal_emission_threshold);
+        mutate_field(&mut self.connection_cost);
+        mutate_field(&mut self.isolation_threshold);
     }
 }
 
@@ -162,6 +169,8 @@ pub enum CellAction {
     Differentiate(CellLineage),
     EmitSignal(String, f32),
     Die,
+    Connect(String),
+    Disconnect(String),
 }
 
 impl SecurityCell {
@@ -213,6 +222,12 @@ impl SecurityCell {
             return CellAction::Die;
         }
 
+        if self.state.stress_level > self.genome.isolation_threshold && !environment.detected_neighbors.is_empty() {
+             if let Some(target) = environment.detected_neighbors.first() {
+                 return CellAction::Disconnect(target.clone());
+             }
+        }
+
         if effective_threat >= self.genome.reproduction_threshold
             && self.state.energy >= self.genome.reproduction_energy_min
         {
@@ -257,6 +272,7 @@ mod tests {
         CellEnvironment {
             local_threat_score: threat,
             neighbor_signals: HashMap::new(),
+            detected_neighbors: Vec::new(),
         }
     }
 
@@ -292,6 +308,7 @@ mod tests {
         let environment = CellEnvironment {
             local_threat_score: 0.05,
             neighbor_signals: signals,
+            detected_neighbors: Vec::new(),
         };
         let action = cell.tick(&environment);
         match action {
@@ -310,6 +327,7 @@ mod tests {
         let environment = CellEnvironment {
             local_threat_score: 0.45,
             neighbor_signals: signals,
+            detected_neighbors: Vec::new(),
         };
         let action = cell.tick(&environment);
         match action {
@@ -326,5 +344,23 @@ mod tests {
         let mut cell = SecurityCell::new("epsilon");
         let action = cell.tick(&env_with_threat(0.1));
         assert!(matches!(action, CellAction::Idle));
+    }
+
+    #[test]
+    fn cell_disconnects_under_extreme_stress() {
+        let mut cell = SecurityCell::new("zeta");
+        cell.state.stress_level = 0.95;
+        cell.genome.isolation_threshold = 0.9;
+        
+        let mut environment = env_with_threat(0.8);
+        environment.detected_neighbors.push("bad_neighbor".to_string());
+        
+        let action = cell.tick(&environment);
+        match action {
+            CellAction::Disconnect(target) => {
+                assert_eq!(target, "bad_neighbor");
+            },
+            other => panic!("expected disconnect, got {other:?}"),
+        }
     }
 }
