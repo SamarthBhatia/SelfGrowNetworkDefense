@@ -20,6 +20,8 @@ pub struct ScenarioConfig {
     pub spikes: Vec<ThreatSpike>,
     #[serde(default = "default_cell_reproduction_rate")]
     pub cell_reproduction_rate: f32,
+    #[serde(default)]
+    pub topology: TopologyConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -28,6 +30,30 @@ pub struct ThreatProfile {
     pub background_threat: f32,
     #[serde(default = "default_spike_threshold")]
     pub spike_threshold: f32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TopologyConfig {
+    #[serde(default = "default_topology_strategy")]
+    pub strategy: TopologyStrategy,
+}
+
+impl Default for TopologyConfig {
+    fn default() -> Self {
+        Self {
+            strategy: default_topology_strategy(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub enum TopologyStrategy {
+    Global, // Broadcast to all
+    Graph,  // Explicit neighbor list
+}
+
+fn default_topology_strategy() -> TopologyStrategy {
+    TopologyStrategy::Global
 }
 
 impl Default for ThreatProfile {
@@ -48,6 +74,7 @@ impl Default for ScenarioConfig {
             threat_profile: ThreatProfile::default(),
             spikes: Vec::new(),
             cell_reproduction_rate: default_cell_reproduction_rate(),
+            topology: TopologyConfig::default(),
         }
     }
 }

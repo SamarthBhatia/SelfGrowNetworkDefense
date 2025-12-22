@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 pub struct Signal {
     pub topic: String,
     pub value: f32,
+    pub source: Option<String>,
 }
 
 #[allow(dead_code)]

@@ -39,7 +39,7 @@ fn main() {
         },
     );
 
-    let mut app = MorphogeneticApp::new(cells, telemetry_pipeline);
+    let mut app = MorphogeneticApp::new(cells, telemetry_pipeline, config.topology.clone());
 
     let mut stimulus_schedule = runtime
         .stimulus_path
@@ -58,6 +58,7 @@ fn main() {
             app.inject_signal(Signal {
                 topic: "activator".to_string(),
                 value: threat,
+                source: None,
             });
         }
 
@@ -66,6 +67,7 @@ fn main() {
                 app.inject_signal(Signal {
                     topic: command.topic.clone(),
                     value: command.value,
+                    source: None,
                 });
             }
         }

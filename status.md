@@ -19,7 +19,7 @@ estation.
 4. **Controlled Evolution Validation (≈0.5 months)**: Evolve attack suites, collect metrics, and showcase adaptive defense growth on the physical IoT t
 testbed.                                                                                                                                                
                                                                                                                                                        
-## Current State (2025-12-21 UTC)                                                                                                                      
+## Current State (2025-12-22 UTC)                                                                                                                      
 ### Completed                                                                                                                                          
 - Archived the original prototype into `legacy_project_backup/` to preserve prior work while starting a clean rebuild.                                 
 - Captured contributor guidance in `legacy_project_backup/AGENTS.md` for reference.                                                                    
@@ -86,154 +86,35 @@ testbed.
 - Implemented `PopulationStats` to track average genome parameters (mutation drift) over time.
 - Integrated population statistics into telemetry and adversarial run metrics (CSV).
 - Created `scripts/visualize_genome_drift.py` to plot evolutionary trends of genome parameters from simulation artifacts.
+- Implemented "Adaptive Topology Management" foundation:
+    - Added `TopologyConfig` and `TopologyStrategy` (Global vs Graph) to `src/config.rs`.
+    - Refactored `MorphogeneticApp` to support graph-based signaling (adjacency list `neighbors`).
+    - Implemented `step` logic to route signals via graph edges when enabled.
+    - Updated `handle_action` to manage topology on cell replication (child-parent connection) and death (cleanup).
+    - Added `source` field to `Signal` for routing.
+    - Verified with `test_graph_topology_isolation`.
                                                                                                                                                        
 ### In Progress                                                                                                                                        
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up                                                                                                                                            
-- Implement basic graph topology for cell signaling (moving away from global broadcast).
-- Enable adaptive topology changes (dynamic neighbor selection).
+- Allow cells to dynamically modify the topology (Connect/Disconnect actions) for self-healing and isolation.
+- Visualize the topology evolution (e.g., using Graphviz or TUI).
                                                                                                                                                        
 ## Session Log                                                                                                                                         
-### 2025-12-21 — Session 49
-- **Focus**: Visualize evolutionary genome drift.
+### 2025-12-22 — Session 50
+- **Focus**: Implement Adaptive Topology Management (Graph-based signaling).
 - **Actions**:
-    - Created `scripts/visualize_genome_drift.py` to parse `population_stats` from `step_metrics.csv` and generate trend plots.
-    - Executed a 5-generation adversarial simulation (`drift_data`) to generate test data.
-    - Verified the script produces `genome_drift_trends.png` and `reproduction_threshold_drift.png`.
+    - Defined `TopologyStrategy` enum (`Global`, `Graph`) in `src/config.rs`.
+    - Added `neighbors` map and `topology_config` to `MorphogeneticApp`.
+    - Refactored `MorphogeneticApp::step` to selectively aggregate signals based on neighbors in `Graph` mode, while preserving `Global` broadcast behavior as default.
+    - Updated `MorphogeneticApp::handle_action` to:
+        - Connect replicated cells to their parents in `Graph` mode.
+        - Include `source` cell ID in emitted signals.
+        - Clean up neighbors when cells die.
+    - Fixed compilation errors in `main.rs` and `adversarial_loop.rs` related to `Signal` struct changes (`source` field) and `MorphogeneticApp::new` signature.
+    - Added unit tests in `src/orchestration.rs` confirming that `Graph` topology isolates signals between non-neighbors, while `Global` topology broadcasts to all.
 - **Open Questions**:
-    - Does the current random mutation strategy produce enough directional pressure, or do we need more targeted mutations for defense genes?
+    - Should we default to `Graph` mode for new scenarios? (Currently defaults to `Global` for backward compatibility).
 - **Next Session Starting Point**:
-    - Begin implementing "Adaptive Topology Management" by replacing the global signal bus with a graph-based neighbor system in `src/orchestration.rs`.
-
-### 2025-12-21 — Session 48
-- **Focus**: Implement telemetry for tracking evolutionary genome drift.
-- **Actions**:
-    - Defined `PopulationStats` struct in `src/cellular.rs` to aggregate average genome parameters.
-    - Updated `TelemetryEvent::StepSummary` and `StepMetrics` to include optional population statistics.
-    - Modified `MorphogeneticApp::step` to calculate and record population stats periodically (every 10 steps).
-    - Updated `adversarial.rs` to persist population stats as a JSON column in the step metrics CSV.
-    - Verified with `cargo test`.
-    - Fixed a bug where `CellGenome` default values were zeroed out due to incorrect `derive(Default)` usage, restoring the manual implementation.
-- **Open Questions**:
-    - How best to visualize the multi-dimensional genome drift? (Maybe PCA or just line plots of key parameters?)
-- **Next Session Starting Point**:
-    - Create a script to parse the new CSVs and plot the evolution of parameters like `reproduction_threshold` and `threat_inhibitor_factor`.
-
-### 2025-12-21 — Session 47
-- **Focus**: Implement foundational Genetic Regulatory Network (GRN) and Evolutionary Selection for defense.
-- **Actions**:
-    - Introduced `CellGenome` struct in `src/cellular.rs` to encapsulate cell parameters (genes).
-    - Refactored `SecurityCell` to use `CellGenome` instead of hardcoded constants.
-    - Implemented `CellGenome::mutate` with random variation (5% chance per gene).
-    - Updated `MorphogeneticApp` to inherit genome with mutation during replication.
-    - Added `CellAction::Die` and `CellState.dead` to handle cell death when energy depletes, enabling natural selection.
-    - Updated `TelemetryEvent` (added `CellDied`), `StepMetrics`, and `RunStatistics` (added `deaths`) to track cell deaths.
-    - Verified all changes with `cargo test`.
-- **Open Questions**:
-    - How quickly does the population adapt to a specific threat profile?
-    - Do we need "sexual reproduction" (crossover) for cells, or is asexual mutation enough?
-- **Next Session Starting Point**:
-    - Implement genome statistics telemetry to verify that evolution is actually happening (parameters shifting towards optimal values).
-
-### 2025-12-02 — Session 46
-- **Focus**: Re-run analysis with the new hybrid strategy and elitism.
-- **Actions**:
-    - Re-ran the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy.
-    - Updated the `scripts/show_analysis_plots.py` to correctly load the data from `lineage_fitness_history` and save the plot.
-    - Committed the new plot to the repository.
-    - Reverted the changes to `scripts/show_analysis_plots.py`.
-- **Open Questions**:
-    - Will the new hybrid strategy with elitism finally show a clear improvement over the random strategy?
-- **Next Session Starting Point**:
-    - Await user feedback after they have reviewed the generated plot at `docs/images/fitness_comparison.png`.
-
-### 2025-12-02 — Session 45
-- **Focus**: Fix bug in `record_outcome` that was preventing `lineage_fitness_history` from being updated correctly.
-- **Actions**:
-    - Added debugging statements to `record_outcome` to diagnose the issue.
-    - Discovered that the `parent_id` was not being correctly extracted from the `AttackCandidate`.
-    - Corrected the logic to ensure that the `lineage_fitness_history` is properly updated for each lineage.
-    - Verified the fix by running a single-generation test and observing the correct debugging output.
-- **Open Questions**:
-    - Now that the logging is fixed, will the plot show a clearer picture of the strategies' performance?
-- **Next Session Starting Point**:
-    - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
-
-### 2025-12-02 — Session 44
-- **Focus**: Implement a hybrid "Explorer-Exploiter" strategy.
-- **Actions**:
-    - Added an `exploration_generations: u32` field to `EvolutionConfig` to control the number of initial generations for exploration.
-    - Modified the `run_generations` function to use the `Random` mutation strategy during the exploration phase and switch to the `Targeted` strategy for the exploitation phase.
-    - Updated all tests and binary crates to correctly initialize the new `exploration_generations` field.
-    - Verified that the project compiles successfully.
-- **Open Questions**:
-    - Will the new hybrid strategy provide a better balance between exploration and exploitation?
-- **Next Session Starting Point**:
-    - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
-
-### 2025-12-02 — Session 43
-- **Focus**: Implement true elitism to preserve high-fitness candidates.
-- **Actions**:
-    - Replaced the `retain_elite: bool` field in `EvolutionConfig` with `elite_size: usize`.
-    - Modified the `run_generations` function to carry over the top `elite_size` candidates to the next generation without mutation.
-    - Updated all tests and binary crates to use the new `elite_size` parameter.
-    - Verified that the project compiles successfully.
-- **Open Questions**:
-    - Will the new elitism strategy effectively preserve "home run" attacks and lead to better overall performance?
-- **Next Session Starting Point**:
-    - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
-
-### 2025-12-02 — Session 42
-- **Focus**: Implement a refinement period for the Targeted mutation strategy.
-- **Actions**:
-    - Added `refinement_period: u32`, `adaptive_mutation_stagnation_threshold: u32`, and `refinement_mutation_strength_factor: f32` to the `EvolutionConfig` struct.
-    - Added a `refinement_active_for: u32` field to the `AttackCandidate` struct.
-    - Modified the `perform_mutation` function to implement the refinement logic.
-    - Updated all tests and binary crates to correctly initialize the new fields.
-    - Verified that the project compiles successfully.
-- **Open Questions**:
-    - Will the new refinement period help to preserve and exploit high-fitness candidates?
-- **Next Session Starting Point**:
-    - Re-run the `run_targeted_mutation_analysis.sh` script to gather new data with the refined strategy and analyze the results using the `show_analysis_plots.py` script.
-
-### 2025-12-02 — Session 41
-- **Focus**: Fix the plotting script to correctly visualize the fitness data.
-- **Actions**:
-    - Identified that `scripts/show_analysis_plots.py` was only plotting data from the last generation due to an incorrect data loading strategy.
-    - Modified the `load_harness_data` function in `scripts/show_analysis_plots.py` to correctly load data from all generations by using the `lineage_fitness_history` field in `harness_state.json`.
-    - Re-ran the analysis script and the plotting script to generate the corrected plot.
-    - Committed the updated plot to the repository.
-    - Reverted the changes made to `scripts/show_analysis_plots.py`.
-- **Open Questions**:
-    - Based on the generated plots, is the refined `Targeted` strategy significantly outperforming the `Random` strategy?
-    - Are there new patterns in the fitness distribution that suggest areas for further refinement?
-- **Next Session Starting Point**:
-    - Await user feedback after they have reviewed the generated plot at `docs/images/fitness_comparison.png`.
-
-### 2025-12-02 — Session 40
-- **Focus**: Store the analysis plot in the repository.
-- **Actions**:
-    - Created a new directory `docs/images`.
-    - Modified `scripts/show_analysis_plots.py` to save the generated plot to `docs/images/fitness_comparison.png`.
-    - Executed `scripts/show_analysis_plots.py` to generate and save the plot.
-    - Committed the new plot to the repository.
-    - Reverted the changes made to `scripts/show_analysis_plots.py`.
-- **Open Questions**:
-    - Based on the generated plots, is the refined `Targeted` strategy significantly outperforming the `Random` strategy?
-    - Are there new patterns in the fitness distribution that suggest areas for further refinement?
-- **Next Session Starting Point**:
-    - Await user feedback after they have reviewed the generated plot at `docs/images/fitness_comparison.png`.
-
-### 2025-12-02 — Session 39
-- **Focus**: Execute the targeted mutation analysis and prepare the results for visualization.
-- **Actions**:
-    - Re-ran the `scripts/run_targeted_mutation_analysis.sh` script to gather new data with the refined `Targeted` mutation strategy.
-    - Modified `scripts/show_analysis_plots.py` to save the generated plots to the project's temporary directory (`/Users/samarthbhatia/.gemini/tmp/8862ab42df8198182c5d13a5e01711aff42cff39f2afb26da0e7515625229f3e/analysis_plots/fitness_comparison.png`) instead of displaying them.
-    - Executed `scripts/show_analysis_plots.py` to generate and save the comparison plots.
-    - Reverted the changes made to `scripts/show_analysis_plots.py`.
-- **Open Questions**:
-    - Based on the generated plots, is the refined `Targeted` strategy significantly outperforming the `Random` strategy?
-    - Are there new patterns in the fitness distribution that suggest areas for further refinement?
-- **Next Session Starting Point**:
-    - Await user feedback after they have reviewed the generated plot.
+    - Implement `CellAction::Connect` and `CellAction::Disconnect` to allow cells to actively reshape the network.

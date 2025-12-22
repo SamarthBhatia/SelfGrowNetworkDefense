@@ -226,7 +226,7 @@ fn simulate_candidate(
         cells.push(cell);
     }
 
-    let mut app = MorphogeneticApp::new(cells, telemetry);
+    let mut app = MorphogeneticApp::new(cells, telemetry, scenario_config.topology.clone());
     let steps = std::cmp::max(1, scenario_config.simulation_steps);
     let mut per_step: Vec<StepMetrics> = Vec::with_capacity(steps as usize);
     let mut stimulus_ledger: HashMap<u32, HashMap<String, f32>> = HashMap::new();
@@ -237,6 +237,7 @@ fn simulate_candidate(
             app.inject_signal(Signal {
                 topic: "activator".to_string(),
                 value: threat,
+                source: None,
             });
         }
 
@@ -248,6 +249,7 @@ fn simulate_candidate(
                     app.inject_signal(Signal {
                         topic: command.topic.clone(),
                         value: command.value,
+                        source: None,
                     });
                     *entry.entry(command.topic).or_insert(0.0) += command.value;
                 }

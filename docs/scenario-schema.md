@@ -24,6 +24,24 @@ Predefined threat spikes applied on specific steps. Each element is an object:
 
 - `step` (integer): Step index (0-based).
 - `intensity` (float): Threat to add on that step before evaluating automata.
+- `duration` (integer, default `1`): Number of steps the spike persists.
+
+### `topology` (object, optional)
+Defines how cells communicate.
+
+- `strategy` (string, default `Global`): Signaling routing logic. Supported values:
+    - `Global`: All signals are broadcast to all cells (soup model).
+    - `Graph`: Signals travel only between neighbors (parent-child or explicit connections).
+
+## Example: Graph-based Topology
+
+```yaml
+scenario_name: graph-defense
+topology:
+  strategy: Graph
+initial_cell_count: 5
+simulation_steps: 10
+```
 
 ## Example: Baseline Growth
 
