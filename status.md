@@ -100,18 +100,32 @@ testbed.
     - Implemented `MorphogeneticApp::handle_action` to process `Connect` (bi-directional link) and `Disconnect` (remove link).
     - Added logic to `SecurityCell::tick` to disconnect from neighbors when stress exceeds `isolation_threshold`.
     - Verified with `cell_disconnects_under_extreme_stress` unit test.
-- Implemented Topology Visualization:
+- Implemented Topology Visualization and Targeting:
     - Added `LinkAdded` and `LinkRemoved` telemetry events.
     - Created `scripts/visualize_topology.py` to generate Graphviz DOT files from telemetry.
+    - Added `target` field to `Signal` and `StimulusCommand` to enable targeted attacks.
+    - Validated isolation behavior with `viral-outbreak` scenario, where Patient Zero successfully quarantined itself.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up 
-- Create a scenario where cells *must* disconnect from "infected" neighbors to survive.
 - Integrate topology metrics (e.g., node degree, clustering coefficient) into the fitness scoring.
+- Start Phase 3: Swarm Immune Response (Distributed anomaly detection).
                                                                                                                                                        
 ## Session Log 
+### 2025-12-22 — Session 53
+- **Focus**: Validate topology isolation with a "viral outbreak" scenario.
+- **Actions**:
+    - Refactored `Signal` and `StimulusCommand` to support targeted signal injection (simulating a local infection).
+    - Created `docs/examples/viral-outbreak.yaml` and `docs/examples/viral-stimulus.jsonl`.
+    - Executed the simulation and visualized the result.
+    - **Result**: Confirmed that the targeted cell (`seed-0`) detected the stress and disconnected from its neighbor (`seed-1`), preventing signal propagation.
+- **Open Questions**:
+    - How do we incentivize re-connection after the threat passes? (Currently, the link remains broken).
+- **Next Session Starting Point**:
+    - Implement a recovery mechanism or "healer" cell logic to restore connectivity when safe.
+
 ### 2025-12-22 — Session 52
 - **Focus**: Implement topology telemetry and visualization.
 - **Actions**:
@@ -122,34 +136,3 @@ testbed.
     - Can we render these DOT files to GIFs automatically to see the "quarantine" effect?
 - **Next Session Starting Point**:
     - Define a "viral" threat scenario to test the isolation logic.
-
-### 2025-12-22 — Session 51
-- **Focus**: Enable active topology remodeling (Disconnect/Connect).
-- **Actions**:
-    - Expanded `CellEnvironment` to provide `detected_neighbors`.
-    - Updated `CellGenome` with `isolation_threshold` and `connection_cost`.
-    - Added `Connect` and `Disconnect` variants to `CellAction`.
-    - Implemented "panic disconnect" logic in `SecurityCell::tick`: if stress > threshold, cut a link.
-    - Updated `MorphogeneticApp` to execute these topology changes.
-    - Verified with `cell_disconnects_under_extreme_stress` test.
-- **Open Questions**:
-    - How do we make `Connect` smart? (Currently unused in logic, though implemented in app).
-- **Next Session Starting Point**:
-    - Create a topology visualization tool or script to see these graphs in action.
-
-### 2025-12-22 — Session 50
-- **Focus**: Implement Adaptive Topology Management (Graph-based signaling).
-- **Actions**:
-    - Defined `TopologyStrategy` enum (`Global`, `Graph`) in `src/config.rs`.
-    - Added `neighbors` map and `topology_config` to `MorphogeneticApp`.
-    - Refactored `MorphogeneticApp::step` to selectively aggregate signals based on neighbors in `Graph` mode, while preserving `Global` broadcast behavior as default.
-    - Updated `MorphogeneticApp::handle_action` to:
-        - Connect replicated cells to their parents in `Graph` mode.
-        - Include `source` cell ID in emitted signals.
-        - Clean up neighbors when cells die.
-    - Fixed compilation errors in `main.rs` and `adversarial_loop.rs` related to `Signal` struct changes (`source` field) and `MorphogeneticApp::new` signature.
-    - Added unit tests in `src/orchestration.rs` confirming that `Graph` topology isolates signals between non-neighbors, while `Global` topology broadcasts to all.
-- **Open Questions**:
-    - Should we default to `Graph` mode for new scenarios? (Currently defaults to `Global` for backward compatibility).
-- **Next Session Starting Point**:
-    - Implement `CellAction::Connect` and `CellAction::Disconnect` to allow cells to actively reshape the network.
