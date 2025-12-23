@@ -100,15 +100,29 @@ testbed.
     - Implemented `MorphogeneticApp::handle_action` to process `Connect` (bi-directional link) and `Disconnect` (remove link).
     - Added logic to `SecurityCell::tick` to disconnect from neighbors when stress exceeds `isolation_threshold`.
     - Verified with `cell_disconnects_under_extreme_stress` unit test.
+- Implemented Topology Visualization:
+    - Added `LinkAdded` and `LinkRemoved` telemetry events.
+    - Created `scripts/visualize_topology.py` to generate Graphviz DOT files from telemetry.
                                                                                                                                                        
-### In Progress                                                                                                                                        
+### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
-### Next Up                                                                                                                                            
-- Visualize the topology evolution (e.g., using Graphviz or TUI).
+### Next Up 
 - Create a scenario where cells *must* disconnect from "infected" neighbors to survive.
+- Integrate topology metrics (e.g., node degree, clustering coefficient) into the fitness scoring.
                                                                                                                                                        
-## Session Log                                                                                                                                         
+## Session Log 
+### 2025-12-22 — Session 52
+- **Focus**: Implement topology telemetry and visualization.
+- **Actions**:
+    - Defined `LinkAdded` and `LinkRemoved` in `src/telemetry.rs`.
+    - Integrated link tracking into `MorphogeneticApp` lifecycle (init, replication, connection, death).
+    - Authored `scripts/visualize_topology.py` to reconstruct and export the graph evolution.
+- **Open Questions**:
+    - Can we render these DOT files to GIFs automatically to see the "quarantine" effect?
+- **Next Session Starting Point**:
+    - Define a "viral" threat scenario to test the isolation logic.
+
 ### 2025-12-22 — Session 51
 - **Focus**: Enable active topology remodeling (Disconnect/Connect).
 - **Actions**:
