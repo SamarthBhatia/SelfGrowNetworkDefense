@@ -29,6 +29,14 @@ pub enum TelemetryEvent {
     CellDied {
         cell_id: String,
     },
+    LinkAdded {
+        source: String,
+        target: String,
+    },
+    LinkRemoved {
+        source: String,
+        target: String,
+    },
     StepSummary {
         step: u32,
         threat_score: f32,

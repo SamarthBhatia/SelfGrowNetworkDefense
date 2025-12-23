@@ -52,7 +52,15 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     if i > 0 {
                         let prev_id = self.cells[i-1].id.clone();
                         self.neighbors.entry(current_id.clone()).or_default().push(prev_id.clone());
-                        self.neighbors.entry(prev_id).or_default().push(current_id.clone());
+                        self.neighbors.entry(prev_id.clone()).or_default().push(current_id.clone());
+                        
+                        self.telemetry.record(
+                            SystemTime::now(),
+                            TelemetryEvent::LinkAdded {
+                                source: current_id,
+                                target: prev_id,
+                            },
+                        );
                     }
                 }
             }
@@ -140,10 +148,35 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
 
             if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
                 for dead_id in dead_ids {
-                    self.neighbors.remove(&dead_id);
-                    for neighbors in self.neighbors.values_mut() {
+                    if let Some(neighbors) = self.neighbors.remove(&dead_id) {
+                        for neighbor in neighbors {
+                            self.telemetry.record(
+                                SystemTime::now(),
+                                TelemetryEvent::LinkRemoved {
+                                    source: dead_id.clone(),
+                                    target: neighbor,
+                                },
+                            );
+                        }
+                    }
+                    for (neighbor_id, neighbors) in self.neighbors.iter_mut() {
                         if let Some(pos) = neighbors.iter().position(|x| x == &dead_id) {
                             neighbors.remove(pos);
+                            // We already logged the link removal from the dead cell's perspective.
+                            // Since it's an undirected graph (effectively), one event is enough to signify the break?
+                            // Or should we log both directions? Let's stick to one event per "logical link" break if possible,
+                            // but logging both is safer for reconstruction.
+                            // Actually, let's just rely on the first loop to catch the explicit connections.
+                            // But wait, if A is neighbor of B, B is neighbor of A. 
+                            // Removing A from B's list is the other half.
+                            // Let's log it for completeness so the graph reconstruction is robust.
+                            self.telemetry.record(
+                                SystemTime::now(),
+                                TelemetryEvent::LinkRemoved {
+                                    source: neighbor_id.clone(),
+                                    target: dead_id.clone(),
+                                },
+                            );
                         }
                     }
                 }
@@ -182,6 +215,14 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
                     self.neighbors.entry(parent_id.clone()).or_default().push(child_id.clone());
                     self.neighbors.entry(child_id.clone()).or_default().push(parent_id.clone());
+                    
+                    self.telemetry.record(
+                        SystemTime::now(),
+                        TelemetryEvent::LinkAdded {
+                            source: parent_id.clone(),
+                            target: child_id.clone(),
+                        },
+                    );
                 }
 
                 self.telemetry.record(
@@ -247,6 +288,14 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                              neighbors.remove(pos);
                          }
                      }
+                     
+                     self.telemetry.record(
+                         SystemTime::now(),
+                         TelemetryEvent::LinkRemoved {
+                             source: cell_id,
+                             target: target_id,
+                         },
+                     );
                 }
             }
             CellAction::Connect(target_id) => {
@@ -255,7 +304,15 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                      // Add forward link
                      self.neighbors.entry(cell_id.clone()).or_default().push(target_id.clone());
                      // Add backward link
-                     self.neighbors.entry(target_id).or_default().push(cell_id);
+                     self.neighbors.entry(target_id.clone()).or_default().push(cell_id.clone());
+                     
+                     self.telemetry.record(
+                         SystemTime::now(),
+                         TelemetryEvent::LinkAdded {
+                             source: cell_id,
+                             target: target_id,
+                         },
+                     );
                  }
             }
         }

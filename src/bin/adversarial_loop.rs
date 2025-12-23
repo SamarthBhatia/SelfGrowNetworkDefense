@@ -297,7 +297,9 @@ fn simulate_candidate(
                     summary_cells = Some(*cell_count as u32);
                     summary_population_stats = population_stats.clone();
                 }
-                TelemetryEvent::Scenario { .. } => {}
+                TelemetryEvent::Scenario { .. }
+                | TelemetryEvent::LinkAdded { .. }
+                | TelemetryEvent::LinkRemoved { .. } => {}
             }
         }
 
