@@ -1,0 +1,9 @@
+scenario_name: viral-outbreak
+topology:
+  strategy: Graph
+initial_cell_count: 10
+simulation_steps: 20
+threat_profile:
+  background_threat: 0.1
+  spike_threshold: 0.5
+cell_reproduction_rate: 1.0
