@@ -112,6 +112,12 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
 
         let mut actions = Vec::with_capacity(self.cells.len());
 
+        let global_neighbors: Vec<String> = if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
+            self.cells.iter().map(|c| c.id.clone()).collect()
+        } else {
+            Vec::new()
+        };
+
         for (index, cell) in self.cells.iter_mut().enumerate() {
             let neighbor_signals: Vec<Signal> = if let Some(ref globals) = global_signals {
                 globals.clone()
@@ -139,11 +145,20 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 cell_signals
             };
 
+            let detected_neighbors = if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
+                global_neighbors.iter()
+                    .filter(|id| *id != &cell.id)
+                    .cloned()
+                    .collect()
+            } else {
+                self.neighbors.get(&cell.id).cloned().unwrap_or_default()
+            };
+
             let environment = CellEnvironment {
                 step: step_index,
                 local_threat_score: threat_score,
                 neighbor_signals,
-                detected_neighbors: self.neighbors.get(&cell.id).cloned().unwrap_or_default(),
+                detected_neighbors,
             };
             let action = cell.tick(&environment);
             actions.push((index, action));
@@ -341,7 +356,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                                           );
                                      }
                                  }
-                                             CellAction::ReportAnomaly(topic, confidence, attestation) => {
+                                             CellAction::ReportAnomaly(topic, confidence, target, attestation) => {
                                                  let cell_id = self.cells[index].id.clone();
                                                  self.telemetry.record(
                                                      SystemTime::now(),
@@ -356,7 +371,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                                                                      topic: format!("consensus:{}", topic),
                                                                      value: confidence,
                                                                      source: Some(cell_id.clone()),
-                                                                     target: None,
+                                                                     target,
                                                                      attestation,
                                                                  });
                                                                  self.telemetry.record(
