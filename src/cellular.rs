@@ -2,14 +2,15 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::immune::ThreatEvent;
+use crate::immune::{Attestation, ThreatEvent, TPM};
+use crate::signaling::Signal;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellEnvironment {
     pub step: u32,
     pub local_threat_score: f32,
-    pub neighbor_signals: HashMap<String, f32>,
+    pub neighbor_signals: Vec<Signal>,
     pub detected_neighbors: Vec<String>,
 }
 
@@ -180,6 +181,7 @@ pub struct SecurityCell {
     pub id: String,
     pub state: CellState,
     pub genome: CellGenome,
+    pub tpm: TPM,
 }
 
 #[allow(dead_code)]
@@ -192,14 +194,15 @@ pub enum CellAction {
     Die,
     Connect(String),
     Disconnect(String),
-    ReportAnomaly(String, f32),
+    ReportAnomaly(String, f32, Option<Attestation>),
 }
 
 impl SecurityCell {
     #[allow(dead_code)]
     pub fn new(id: impl Into<String>) -> Self {
+        let id = id.into();
         Self {
-            id: id.into(),
+            id: id.clone(),
             state: CellState {
                 lineage: CellLineage::Stem,
                 energy: 1.0,
@@ -208,32 +211,31 @@ impl SecurityCell {
                 immune_memory: Vec::new(),
             },
             genome: CellGenome::default(),
+            tpm: TPM::new(id),
         }
     }
 
     #[allow(dead_code)]
     pub fn tick(&mut self, environment: &CellEnvironment) -> CellAction {
-        let activator = environment
-            .neighbor_signals
-            .get("activator")
-            .copied()
-            .unwrap_or(0.0);
-        let inhibitor = environment
-            .neighbor_signals
-            .get("inhibitor")
-            .copied()
-            .unwrap_or(0.0);
-        let cooperative = environment
-            .neighbor_signals
-            .get("cooperative")
-            .copied()
-            .unwrap_or(0.0);
-
-        // Consensus signals: "consensus:topic"
+        let mut activator = 0.0;
+        let mut inhibitor = 0.0;
+        let mut cooperative = 0.0;
         let mut consensus_votes = 0.0;
-        for (topic, value) in &environment.neighbor_signals {
-            if topic.starts_with("consensus:") {
-                consensus_votes += value;
+
+        for signal in &environment.neighbor_signals {
+            match signal.topic.as_str() {
+                "activator" => activator += signal.value,
+                "inhibitor" => inhibitor += signal.value,
+                "cooperative" => cooperative += signal.value,
+                topic if topic.starts_with("consensus:") => {
+                    // Only count vote if attestation is valid
+                    if let Some(attestation) = &signal.attestation {
+                        if TPM::verify(attestation) {
+                            consensus_votes += signal.value;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -275,13 +277,14 @@ impl SecurityCell {
             // Record in memory if not already there recently
             if !self.state.immune_memory.iter().any(|e| e.topic == "activator" && e.step > 0) {
                 self.state.immune_memory.push(ThreatEvent {
-                    step: 1, // Placeholder: in real run we'd need the actual step
+                    step: environment.step, // Use actual step
                     topic: "activator".to_string(),
                     magnitude: effective_threat,
                     confidence: 0.8,
                 });
             }
-            return CellAction::ReportAnomaly("activator".to_string(), effective_threat);
+            let attestation = self.tpm.attest(environment.step as u64);
+            return CellAction::ReportAnomaly("activator".to_string(), effective_threat, attestation);
         }
 
         if effective_threat >= self.genome.reproduction_threshold
@@ -328,7 +331,7 @@ mod tests {
         CellEnvironment {
             step: 0,
             local_threat_score: threat,
-            neighbor_signals: HashMap::new(),
+            neighbor_signals: Vec::new(),
             detected_neighbors: Vec::new(),
         }
     }
@@ -360,8 +363,14 @@ mod tests {
     fn cell_transitions_to_healer_with_inhibitor_support() {
         let mut cell = SecurityCell::new("gamma");
         cell.state.stress_level = 0.2;
-        let mut signals = HashMap::new();
-        signals.insert("inhibitor".to_string(), 0.65);
+        let mut signals = Vec::new();
+        signals.push(Signal {
+             topic: "inhibitor".to_string(),
+             value: 0.65,
+             source: None,
+             target: None,
+             attestation: None,
+        });
         let environment = CellEnvironment {
             step: 0,
             local_threat_score: 0.05,
@@ -380,8 +389,14 @@ mod tests {
     #[test]
     fn cell_emits_signal_on_moderate_threat() {
         let mut cell = SecurityCell::new("delta");
-        let mut signals = HashMap::new();
-        signals.insert("activator".to_string(), 0.1);
+        let mut signals = Vec::new();
+        signals.push(Signal {
+             topic: "activator".to_string(),
+             value: 0.1,
+             source: None,
+             target: None,
+             attestation: None,
+        });
         let environment = CellEnvironment {
             step: 0,
             local_threat_score: 0.45,
@@ -431,8 +446,19 @@ mod tests {
         
         let mut environment = env_with_threat(0.0);
         environment.detected_neighbors.push("neighbor_1".to_string());
+        
+        // Mock TPM for neighbor to generate valid attestation
+        let neighbor_tpm = TPM::new("neighbor_1".to_string());
+        let attestation = neighbor_tpm.attest(0).unwrap();
+
         // Two neighbors reporting consensus
-        environment.neighbor_signals.insert("consensus:activator".to_string(), 2.0);
+        environment.neighbor_signals.push(Signal {
+             topic: "consensus:activator".to_string(),
+             value: 2.0,
+             source: Some("neighbor_1".to_string()),
+             target: None,
+             attestation: Some(attestation),
+        });
         
         let action = cell.tick(&environment);
         match action {
@@ -449,14 +475,29 @@ mod tests {
         cell.state.lineage = CellLineage::IntrusionDetection;
         cell.genome.anomaly_sensitivity = 0.4;
         
-        let mut environment = env_with_threat(0.6); // High threat
-        environment.neighbor_signals.insert("inhibitor".to_string(), 0.1); // Low suppression
+        let mut signals = Vec::new();
+        signals.push(Signal {
+             topic: "inhibitor".to_string(),
+             value: 0.1,
+             source: None,
+             target: None,
+             attestation: None,
+        });
+
+        let environment = CellEnvironment {
+            step: 5,
+            local_threat_score: 0.6,
+            neighbor_signals: signals,
+            detected_neighbors: Vec::new(),
+        };
         
         let action = cell.tick(&environment);
         match action {
-            CellAction::ReportAnomaly(topic, confidence) => {
+            CellAction::ReportAnomaly(topic, confidence, attestation) => {
                 assert_eq!(topic, "activator");
                 assert!(confidence >= 0.5);
+                assert!(attestation.is_some());
+                assert!(attestation.unwrap().timestamp == 5);
             },
             other => panic!("expected anomaly report, got {other:?}"),
         }

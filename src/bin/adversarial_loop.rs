@@ -239,6 +239,7 @@ fn simulate_candidate(
                 value: threat,
                 source: None,
                 target: None,
+                attestation: None,
             });
         }
 
@@ -252,6 +253,7 @@ fn simulate_candidate(
                         value: command.value,
                         source: None,
                         target: command.target.clone(),
+                        attestation: None,
                     });
                     *entry.entry(command.topic).or_insert(0.0) += command.value;
                 }

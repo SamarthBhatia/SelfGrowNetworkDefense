@@ -21,6 +21,48 @@ pub struct SwarmConsensus {
     pub confirmed: Vec<String>,
 }
 
+/// Simulated cryptographic attestation token.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Attestation {
+    pub cell_id: String,
+    pub timestamp: u64,
+    pub signature: String,
+    pub valid: bool,
+}
+
+/// Simulated Trusted Platform Module (TPM).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TPM {
+    pub cell_id: String,
+    pub compromised: bool,
+}
+
+impl TPM {
+    pub fn new(cell_id: String) -> Self {
+        Self {
+            cell_id,
+            compromised: false,
+        }
+    }
+
+    pub fn attest(&self, timestamp: u64) -> Option<Attestation> {
+        if self.compromised {
+            None
+        } else {
+            Some(Attestation {
+                cell_id: self.cell_id.clone(),
+                timestamp,
+                signature: format!("sig_{}_{}", self.cell_id, timestamp),
+                valid: true,
+            })
+        }
+    }
+
+    pub fn verify(attestation: &Attestation) -> bool {
+        attestation.valid && attestation.signature.starts_with("sig_")
+    }
+}
+
 impl SwarmConsensus {
     pub fn cast_vote(&mut self, topic: String) {
         *self.votes.entry(topic).or_insert(0) += 1;

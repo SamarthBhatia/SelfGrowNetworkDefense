@@ -59,6 +59,8 @@ fn main() {
                 topic: "activator".to_string(),
                 value: threat,
                 source: None,
+                target: None,
+                attestation: None,
             });
         }
 
@@ -68,6 +70,8 @@ fn main() {
                     topic: command.topic.clone(),
                     value: command.value,
                     source: None,
+                    target: command.target.clone(),
+                    attestation: None,
                 });
             }
         }

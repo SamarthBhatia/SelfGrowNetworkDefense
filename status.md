@@ -118,13 +118,19 @@ testbed.
     - Implemented coordinated quarantine (cells disconnect based on neighbor `consensus` signals).
     - Added `anomaly_sensitivity` to `CellGenome` and enabled its mutation.
     - Verified behavior with `test_swarm_coordinated_quarantine` and `test_anomaly_detection_report`.
+- Implemented Simulated TPM Attestation:
+    - Defined `TPM` and `Attestation` structs in `src/immune.rs`.
+    - Updated `Signal` to carry an optional `Attestation`.
+    - Integrated `TPM` into `SecurityCell` for signing anomaly reports.
+    - Enforced signature verification (`TPM::verify`) for `consensus` signals in `SecurityCell::tick`.
+    - Verified with tests to ensure only attested consensus signals trigger quarantine.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up 
-- Implement TPM-backed attestation (simulated) for swarm coordination.
-- Refine immune memory to allow genome "hardening" against specific threat topics.
+- Refine immune memory to allow genome "hardening" against specific threat topics (partially implemented in `apply_immune_memory`, need to hook it into replication or adaptation events).
+- Visualize the "trust graph" (who trusts who based on attestation).
                                                                                                                                                        
 ## Session Log 
 ### 2025-12-27 — Session 55
@@ -134,6 +140,7 @@ testbed.
     - Integrated `immune_memory` into `CellState`.
     - Added `ReportAnomaly` to `CellAction` and handled it in `MorphogeneticApp` via `consensus` signaling.
     - Implemented coordinated quarantine logic in `SecurityCell`.
+    - Implemented simulated TPM attestation logic.
     - Verified with unit tests.
 - **Next Session Starting Point**:
-    - Implement simulated TPM-backed attestation to ensure only "trusted" cells can participate in consensus.
+    - Hook `apply_immune_memory` into the lifecycle (e.g., during replication or specific "hardening" events).

@@ -93,16 +93,9 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
     pub fn step(&mut self, step_index: u32, threat_score: f32) {
         let signals = self.signal_bus.drain();
         
-        let global_signals = if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
-            let mut agg = HashMap::new();
-            for signal in &signals {
-                agg.entry(signal.topic.clone())
-                    .and_modify(|value| {
-                        *value = (*value + signal.value) * 0.5;
-                    })
-                    .or_insert(signal.value);
-            }
-            Some(agg)
+        let global_signals: Option<Vec<Signal>> = if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
+            // In Global, everyone sees everything.
+            Some(signals.clone())
         } else {
             None
         };
@@ -120,18 +113,14 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         let mut actions = Vec::with_capacity(self.cells.len());
 
         for (index, cell) in self.cells.iter_mut().enumerate() {
-            let neighbor_signals = if let Some(ref globals) = global_signals {
+            let neighbor_signals: Vec<Signal> = if let Some(ref globals) = global_signals {
                 globals.clone()
             } else {
-                let mut agg = HashMap::new();
+                let mut cell_signals = Vec::new();
                 // 1. Incorporate system signals (source == None)
                 for signal in signals.iter().filter(|s| s.source.is_none()) {
-                    // Filter: if signal has a target, it must match this cell's ID.
-                    // If target is None, it's a broadcast.
                     if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
-                        agg.entry(signal.topic.clone())
-                           .and_modify(|v| *v = (*v + signal.value) * 0.5)
-                           .or_insert(signal.value);
+                        cell_signals.push(signal.clone());
                     }
                 }
 
@@ -140,18 +129,14 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     for neighbor_id in neighbors {
                         if let Some(neighbor_signals) = signals_by_source.get(neighbor_id) {
                             for signal in neighbor_signals {
-                                // Same filtering for neighbor signals, though typically neighbor signals won't be targeted?
-                                // Let's support it anyway for flexibility.
                                 if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
-                                    agg.entry(signal.topic.clone())
-                                       .and_modify(|v| *v = (*v + signal.value) * 0.5)
-                                       .or_insert(signal.value);
+                                    cell_signals.push((*signal).clone());
                                 }
                             }
                         }
                     }
                 }
-                agg
+                cell_signals
             };
 
             let environment = CellEnvironment {
@@ -287,6 +272,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     value,
                     source: Some(cell_id.clone()),
                     target: None, // Broadcast by default
+                    attestation: None,
                 });
                 self.telemetry.record(
                     SystemTime::now(),
@@ -350,24 +336,26 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                                           );
                                      }
                                  }
-                                 CellAction::ReportAnomaly(topic, confidence) => {
-                                     let cell_id = self.cells[index].id.clone();
-                                     self.telemetry.record(
-                                         SystemTime::now(),
-                                         TelemetryEvent::AnomalyDetected {
-                                             cell_id: cell_id.clone(),
-                                             topic: topic.clone(),
-                                             confidence,
-                                         },
-                                     );
-                                     // Also publish a 'consensus' signal to neighbors
-                                     self.signal_bus.publish(Signal {
-                                         topic: format!("consensus:{}", topic),
-                                         value: confidence,
-                                         source: Some(cell_id),
-                                         target: None,
-                                     });
-                                 }
+                                             CellAction::ReportAnomaly(topic, confidence, attestation) => {
+                                                 let cell_id = self.cells[index].id.clone();
+                                                 self.telemetry.record(
+                                                     SystemTime::now(),
+                                                     TelemetryEvent::AnomalyDetected {
+                                                         cell_id: cell_id.clone(),
+                                                         topic: topic.clone(),
+                                                         confidence,
+                                                     },
+                                                 );
+                                                 // Also publish a 'consensus' signal to neighbors
+                                                 self.signal_bus.publish(Signal {
+                                                     topic: format!("consensus:{}", topic),
+                                                     value: confidence,
+                                                     source: Some(cell_id),
+                                                     target: None,
+                                                     attestation,
+                                                 });
+                                             }
+                                 
                              }
                          }
                          #[allow(dead_code)]
@@ -423,6 +411,7 @@ mod tests {
             value: 0.5,
             source: Some("A".to_string()),
             target: None,
+            attestation: None,
         });
 
         // Step 1
@@ -485,6 +474,7 @@ mod tests {
             value: 0.5,
             source: Some("A".to_string()), // Source shouldn't matter for Global, but we provide it
             target: None,
+            attestation: None,
         });
 
         app.step(0, 0.0);
