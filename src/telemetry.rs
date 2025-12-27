@@ -42,7 +42,15 @@ pub enum TelemetryEvent {
         threat_score: f32,
         cell_count: usize,
         population_stats: Option<PopulationStats>,
+        #[serde(default)]
+        topology_stats: Option<TopologyStats>,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TopologyStats {
+    pub avg_degree: f32,
+    pub isolation_count: u32,
 }
 
 #[allow(dead_code)]

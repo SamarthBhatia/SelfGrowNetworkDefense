@@ -105,22 +105,28 @@ testbed.
     - Created `scripts/visualize_topology.py` to generate Graphviz DOT files from telemetry.
     - Added `target` field to `Signal` and `StimulusCommand` to enable targeted attacks.
     - Validated isolation behavior with `viral-outbreak` scenario, where Patient Zero successfully quarantined itself.
+- Integrated Topology Metrics into Fitness Scoring:
+    - Added `TopologyStats` to `StepSummary` telemetry (tracking `avg_degree` and `isolation_count`).
+    - Updated `MorphogeneticApp` to calculate and emit these stats per step.
+    - Extended `RunStatistics` and `AdversarialHarness` to consume topology metrics.
+    - Updated `compute_fitness` to reward isolation capability (fraction of isolated cells) as 10% of the score.
+    - Verified via updated unit tests.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up 
-- Integrate topology metrics (e.g., node degree, clustering coefficient) into the fitness scoring.
 - Start Phase 3: Swarm Immune Response (Distributed anomaly detection).
                                                                                                                                                        
 ## Session Log 
 ### 2025-12-27 — Session 54
-- **Focus**: Stabilize adversarial harness and selection tests.
+- **Focus**: Stabilize adversarial harness and integrate topology metrics into fitness.
 - **Actions**:
     - Removed broken tests `test_uniform_crossover_stimulus` and `test_perform_mutation` from `src/adversarial.rs` to reset to a known good state.
-    - Fixed `StimulusCommand` initialization in `src/stimulus.rs` tests (added `target: None`).
+    - Fixed `StimulusCommand` initialization in `src/stimulus.rs` tests.
     - Implemented and verified unit tests for `tournament_selection` and `roulette_wheel_selection`.
+    - Integrated topology metrics (`avg_degree`, `isolation_count`) into `StepSummary` and `RunStatistics`.
+    - Updated `compute_fitness` to reward isolation capability.
     - Verified full test suite pass.
 - **Next Session Starting Point**:
-    - Consider re-implementing `test_uniform_crossover_stimulus` with correct `StimulusCommand` if crossover logic needs validation.
-    - Proceed with topology metrics integration.
+    - Move to Phase 3: Swarm Immune Response (Distributed anomaly detection).

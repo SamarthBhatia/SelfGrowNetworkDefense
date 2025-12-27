@@ -238,6 +238,7 @@ fn simulate_candidate(
                 topic: "activator".to_string(),
                 value: threat,
                 source: None,
+                target: None,
             });
         }
 
@@ -250,6 +251,7 @@ fn simulate_candidate(
                         topic: command.topic.clone(),
                         value: command.value,
                         source: None,
+                        target: command.target.clone(),
                     });
                     *entry.entry(command.topic).or_insert(0.0) += command.value;
                 }
@@ -268,6 +270,7 @@ fn simulate_candidate(
         let mut summary_threat: Option<f32> = None;
         let mut summary_cells: Option<u32> = None;
         let mut summary_population_stats: Option<morphogenetic_security::cellular::PopulationStats> = None;
+        let mut summary_topology_stats: Option<morphogenetic_security::telemetry::TopologyStats> = None;
 
         for snapshot in new_events {
             match &snapshot.event {
@@ -291,11 +294,13 @@ fn simulate_candidate(
                     threat_score,
                     cell_count,
                     population_stats,
+                    topology_stats,
                     ..
                 } => {
                     summary_threat = Some(*threat_score);
                     summary_cells = Some(*cell_count as u32);
                     summary_population_stats = population_stats.clone();
+                    summary_topology_stats = topology_stats.clone();
                 }
                 TelemetryEvent::Scenario { .. }
                 | TelemetryEvent::LinkAdded { .. }
@@ -328,6 +333,7 @@ fn simulate_candidate(
             lineage_shifts_by_lineage: lineage_by_lineage,
             stimulus_by_topic,
             population_stats: summary_population_stats,
+            topology_stats: summary_topology_stats,
         });
     }
 

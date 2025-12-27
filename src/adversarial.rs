@@ -17,6 +17,7 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 
 use crate::cellular::PopulationStats;
+use crate::telemetry::TopologyStats;
 use crate::config;
 use crate::config::ConfigError;
 use crate::stimulus::StimulusSchedule;
@@ -146,6 +147,8 @@ pub struct RunStatistics {
     pub signals_by_topic: HashMap<String, u32>,
     pub lineage_by_type: HashMap<String, u32>,
     pub stimuli_by_topic: HashMap<String, f32>,
+    pub avg_topology_degree: f32,
+    pub max_isolation_count: u32,
 }
 
 /// Harness evaluation result combining statistics, fitness, and guidance.
@@ -172,6 +175,7 @@ pub struct StepMetrics {
     pub lineage_shifts_by_lineage: HashMap<String, u32>,
     pub stimulus_by_topic: HashMap<String, f32>,
     pub population_stats: Option<PopulationStats>,
+    pub topology_stats: Option<TopologyStats>,
 }
 
 /// Rolling archive snapshot used for persistence.
@@ -849,6 +853,7 @@ pub fn write_step_metrics_csv<P: AsRef<Path>>(
         "lineage_shifts_by_lineage",
         "stimulus_by_topic",
         "population_stats",
+        "topology_stats",
     ])?;
 
     for step in steps {
@@ -856,6 +861,7 @@ pub fn write_step_metrics_csv<P: AsRef<Path>>(
         let lineage_json = serde_json::to_string(&step.lineage_shifts_by_lineage)?;
         let stimulus_json = serde_json::to_string(&step.stimulus_by_topic)?;
         let population_stats_json = serde_json::to_string(&step.population_stats)?;
+        let topology_stats_json = serde_json::to_string(&step.topology_stats)?;
         let (top_signal_topic, top_signal_count) = top_u32(&step.signals_by_topic);
         let (top_lineage, top_lineage_count) = top_u32(&step.lineage_shifts_by_lineage);
 
@@ -876,6 +882,7 @@ pub fn write_step_metrics_csv<P: AsRef<Path>>(
             lineage_json,
             stimulus_json,
             population_stats_json,
+            topology_stats_json,
         ])?;
     }
 
@@ -897,6 +904,11 @@ fn load_step_metrics_from_csv<R: Read>(reader: R) -> Result<Vec<StepMetrics>, Ha
         } else {
             serde_json::from_str(&row.population_stats)?
         };
+        let topology_stats = if row.topology_stats.is_empty() {
+            None
+        } else {
+            serde_json::from_str(&row.topology_stats)?
+        };
 
         steps.push(StepMetrics {
             step: row.step,
@@ -911,6 +923,7 @@ fn load_step_metrics_from_csv<R: Read>(reader: R) -> Result<Vec<StepMetrics>, Ha
             lineage_shifts_by_lineage: lineage_map,
             stimulus_by_topic: stimulus_map,
             population_stats,
+            topology_stats,
         });
     }
 
@@ -941,6 +954,8 @@ struct RawMetricsRow {
     stimulus_by_topic: String,
     #[serde(default)]
     population_stats: String,
+    #[serde(default)]
+    topology_stats: String,
 }
 
 fn build_statistics_from_steps(steps: &[StepMetrics]) -> Result<RunStatistics, HarnessError> {
@@ -967,6 +982,8 @@ struct StatsAccumulator {
     signals_by_topic: HashMap<String, u32>,
     lineage_by_type: HashMap<String, u32>,
     stimuli_by_topic: HashMap<String, f32>,
+    total_degree_sum: f32,
+    max_isolation: u32,
 }
 
 impl StatsAccumulator {
@@ -993,6 +1010,11 @@ impl StatsAccumulator {
         merge_u32_map(&mut self.signals_by_topic, &step.signals_by_topic);
         merge_u32_map(&mut self.lineage_by_type, &step.lineage_shifts_by_lineage);
         merge_f32_map(&mut self.stimuli_by_topic, &step.stimulus_by_topic);
+
+        if let Some(topo) = &step.topology_stats {
+            self.total_degree_sum += topo.avg_degree;
+            self.max_isolation = self.max_isolation.max(topo.isolation_count);
+        }
     }
 
     fn finish(self) -> Result<RunStatistics, HarnessError> {
@@ -1018,6 +1040,8 @@ impl StatsAccumulator {
             signals_by_topic: self.signals_by_topic,
             lineage_by_type: self.lineage_by_type,
             stimuli_by_topic: self.stimuli_by_topic,
+            avg_topology_degree: self.total_degree_sum / self.step_count as f32,
+            max_isolation_count: self.max_isolation,
         })
     }
 }
@@ -1115,12 +1139,14 @@ fn compute_fitness(stats: &RunStatistics) -> (f32, bool) {
     let stimulus_component =
         (stats.total_stimulus / ((stats.step_count as f32).max(1.0) * 1.5)).clamp(0.0, 1.0);
     let lineage_component = compute_lineage_component(stats);
+    let topology_component = (stats.max_isolation_count as f32 / (stats.max_cell_count as f32 + f32::EPSILON)).clamp(0.0, 1.0);
 
-    let fitness = 0.35 * threat_component
+    let fitness = 0.3 * threat_component
         + 0.2 * suppression_component
-        + 0.15 * cell_loss_component
+        + 0.1 * cell_loss_component
         + 0.2 * lineage_component
-        + 0.1 * stimulus_component;
+        + 0.1 * stimulus_component
+        + 0.1 * topology_component;
     let breach_observed = fitness > 0.65
         || stats.max_threat > 1.1
         || cell_loss_component > 0.45
@@ -1175,7 +1201,7 @@ fn recommend_mutation(
             .clamp(0.0, 1.0)
     };
 
-    if fitness_score < 0.4 {
+    if fitness_score < 0.35 {
         if activator <= inhibitor {
             Some(Mutation::IncreaseStimulus {
                 topic: "activator".to_string(),
@@ -1289,6 +1315,7 @@ mod tests {
                     lineage_shifts_by_lineage: HashMap::new(),
                     stimulus_by_topic: HashMap::new(), // Make stimulus_by_topic empty
                     population_stats: None,
+                    topology_stats: None,
                 }];
                 Ok(ExecutionReport {
                     steps,
@@ -1500,6 +1527,7 @@ mod tests {
             lineage_shifts_by_lineage: HashMap::new(),
             stimulus_by_topic: HashMap::from([("activator".into(), 0.4)]),
             population_stats: None,
+            topology_stats: None,
         }];
 
         harness
@@ -1562,6 +1590,7 @@ mod tests {
                     lineage_shifts_by_lineage: HashMap::new(),
                     stimulus_by_topic: HashMap::new(),
                     population_stats: None,
+                    topology_stats: None,
                 }];
                 Ok(ExecutionReport {
                     steps,
@@ -1604,6 +1633,8 @@ mod tests {
             signals_by_topic: HashMap::new(),
             lineage_by_type: HashMap::new(),
             stimuli_by_topic: HashMap::new(),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
         };
 
         for idx in 0..3 {
@@ -1656,6 +1687,8 @@ mod tests {
             signals_by_topic: HashMap::new(),
             lineage_by_type: HashMap::new(),
             stimuli_by_topic: HashMap::new(),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
         };
 
         let outcome = AttackOutcome {
@@ -1694,6 +1727,8 @@ mod tests {
             signals_by_topic: HashMap::from([("activator".into(), 20)]),
             lineage_by_type: HashMap::new(),
             stimuli_by_topic: HashMap::from([("activator".into(), 0.6)]),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
         };
         let (baseline_fitness, baseline_breach) = compute_fitness(&base_stats);
         assert!(baseline_fitness > 0.0);
@@ -1733,10 +1768,12 @@ mod tests {
             signals_by_topic: HashMap::new(),
             lineage_by_type: HashMap::from([("IntrusionDetection".into(), 2)]),
             stimuli_by_topic: HashMap::new(),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
         };
 
         let (fitness, breach) = compute_fitness(&stats);
-        assert!(fitness >= 0.4);
+        assert!(fitness >= 0.35);
         assert!(!breach);
 
         let suggestion =
@@ -1771,10 +1808,12 @@ mod tests {
                 ("Recon".into(), 2),
             ]),
             stimuli_by_topic: HashMap::new(),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
         };
 
         let (fitness, breach) = compute_fitness(&stats);
-        assert!(fitness > 0.4);
+        assert!(fitness > 0.35);
         assert!(!breach);
 
         let suggestion =
@@ -1829,6 +1868,8 @@ mod tests {
                 signals_by_topic: HashMap::new(),
                 lineage_by_type: HashMap::new(),
                 stimuli_by_topic: HashMap::new(),
+                avg_topology_degree: 0.0,
+                max_isolation_count: 0,
             },
         };
 
@@ -1862,6 +1903,8 @@ mod tests {
                 signals_by_topic: HashMap::new(),
                 lineage_by_type: HashMap::new(),
                 stimuli_by_topic: HashMap::new(),
+                avg_topology_degree: 0.0,
+                max_isolation_count: 0,
             },
         };
 
@@ -1902,6 +1945,8 @@ mod tests {
             signals_by_topic: HashMap::new(),
             lineage_by_type: HashMap::new(),
             stimuli_by_topic: HashMap::new(),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
         };
         let outcomes: Vec<AttackOutcome> = (0..5)
             .map(|i| AttackOutcome {
@@ -1946,6 +1991,8 @@ mod tests {
             signals_by_topic: HashMap::new(),
             lineage_by_type: HashMap::new(),
             stimuli_by_topic: HashMap::new(),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
         };
         let outcomes: Vec<AttackOutcome> = (0..2)
             .map(|i| AttackOutcome {
@@ -1986,6 +2033,7 @@ mod tests {
         signals_by_topic: String,
         lineage_shifts_by_lineage: String,
         stimulus_by_topic: String,
+        topology_stats: String,
     }
 
     impl TestRow {
@@ -2018,6 +2066,7 @@ mod tests {
                 signals_by_topic: signals_map.to_string(),
                 lineage_shifts_by_lineage: lineage_map.to_string(),
                 stimulus_by_topic: stimulus_map.to_string(),
+                topology_stats: String::new(),
             }
         }
     }

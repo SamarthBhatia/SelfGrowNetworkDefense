@@ -67,6 +67,28 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         }
     }
 
+    fn calculate_topology_stats(&self) -> crate::telemetry::TopologyStats {
+        if self.cells.is_empty() {
+             return crate::telemetry::TopologyStats { avg_degree: 0.0, isolation_count: 0 };
+        }
+        
+        let mut total_degree = 0;
+        let mut isolation_count = 0;
+        
+        for cell in &self.cells {
+            let degree = self.neighbors.get(&cell.id).map(|n| n.len()).unwrap_or(0);
+            total_degree += degree;
+            if degree == 0 {
+                isolation_count += 1;
+            }
+        }
+        
+        crate::telemetry::TopologyStats {
+            avg_degree: total_degree as f32 / self.cells.len() as f32,
+            isolation_count,
+        }
+    }
+
     #[allow(dead_code)]
     pub fn step(&mut self, step_index: u32, threat_score: f32) {
         let signals = self.signal_bus.drain();
@@ -104,9 +126,13 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 let mut agg = HashMap::new();
                 // 1. Incorporate system signals (source == None)
                 for signal in signals.iter().filter(|s| s.source.is_none()) {
-                    agg.entry(signal.topic.clone())
-                       .and_modify(|v| *v = (*v + signal.value) * 0.5)
-                       .or_insert(signal.value);
+                    // Filter: if signal has a target, it must match this cell's ID.
+                    // If target is None, it's a broadcast.
+                    if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
+                        agg.entry(signal.topic.clone())
+                           .and_modify(|v| *v = (*v + signal.value) * 0.5)
+                           .or_insert(signal.value);
+                    }
                 }
 
                 // 2. Incorporate neighbor signals
@@ -114,9 +140,13 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     for neighbor_id in neighbors {
                         if let Some(neighbor_signals) = signals_by_source.get(neighbor_id) {
                             for signal in neighbor_signals {
-                                agg.entry(signal.topic.clone())
-                                   .and_modify(|v| *v = (*v + signal.value) * 0.5)
-                                   .or_insert(signal.value);
+                                // Same filtering for neighbor signals, though typically neighbor signals won't be targeted?
+                                // Let's support it anyway for flexibility.
+                                if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
+                                    agg.entry(signal.topic.clone())
+                                       .and_modify(|v| *v = (*v + signal.value) * 0.5)
+                                       .or_insert(signal.value);
+                                }
                             }
                         }
                     }
@@ -189,6 +219,8 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         } else {
             None
         };
+        
+        let topology_stats = Some(self.calculate_topology_stats());
 
         self.telemetry.record(
             SystemTime::now(),
@@ -197,6 +229,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 threat_score,
                 cell_count,
                 population_stats,
+                topology_stats,
             },
         );
     }
@@ -252,6 +285,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     topic: topic.clone(),
                     value,
                     source: Some(cell_id.clone()),
+                    target: None, // Broadcast by default
                 });
                 self.telemetry.record(
                     SystemTime::now(),
@@ -370,6 +404,7 @@ mod tests {
             topic: "activator".to_string(),
             value: 0.5,
             source: Some("A".to_string()),
+            target: None,
         });
 
         // Step 1
@@ -431,6 +466,7 @@ mod tests {
             topic: "activator".to_string(),
             value: 0.5,
             source: Some("A".to_string()), // Source shouldn't matter for Global, but we provide it
+            target: None,
         });
 
         app.step(0, 0.0);
