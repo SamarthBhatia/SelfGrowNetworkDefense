@@ -20,6 +20,16 @@ cargo run --bin pitch_tui -- target/pitch_demo
 
 The TUI compares each scenario’s fitness, threat levels, and recommended mutations, reloading live with `r`.
 
+## Swarm Immune Response (Phase 3)
+
+The system now supports distributed coordination and hardware-backed trust:
+- **Consensus Quarantine:** Cells coordinate isolation of infected nodes using attested signals.
+- **TPM Attestation:** Every cell uses a simulated TPM to sign anomaly reports, preventing poisoning attacks.
+- **Acquired Immunity:** Lineages adapt their genomes in real-time when surviving threats and pass this memory to offspring.
+- **Trust-Based Topology:** Cells actively manage links based on neighbor reputation scores.
+
+See `docs/swarm-immune-response.md` for details.
+
 ## Development Basics
 
 - `cargo build` — compile the runtime.

@@ -2,6 +2,20 @@
 
 The runtime can write JSONL telemetry when invoked with `--telemetry telemetry.jsonl`. Use the helper script below to summarize outcomes across one or more runs.
 
+## Telemetry Event Schema
+
+The system emits the following event types:
+
+- `Scenario`: Initialization metadata.
+- `CellReplicated`: Parent-child relationship tracking.
+- `LineageShift`: Specialization events.
+- `SignalEmitted`: Communication and coordination.
+- `CellDied`: Natural selection or depletion.
+- `LinkAdded`/`LinkRemoved`: Topology dynamics.
+- `AnomalyDetected`: Swarm-level threat identification (Phase 3).
+- `VoteCast`: Consensus participation tracking (Phase 3).
+- `StepSummary`: Periodic snapshots of state and population metrics.
+
 ## Quick Summary Script
 
 ```bash

@@ -65,7 +65,7 @@ testbed.
 - Updated `perform_crossover` to use `two_point_crossover_stimulus` when the `TwoPoint` strategy is selected.
 - Added a unit test for `two_point_crossover_stimulus`.
 - Updated `EvolutionConfig::default_smoke_test()` to use the new `TwoPoint` crossover strategy.
-- Fixed a compilation error in the test suite by correctly instating `StimulusCommand`.
+- Fixed a compilation error in the test suite by correctly instantiating `StimulusCommand`.
 - Added a `lineage_fitness_history` field to `AdversarialHarness` to track lineage fitness.
 - Updated `AdversarialHarness::record_outcome` to populate the `lineage_fitness_history`.
 - Added `Targeted` variant to the `MutationStrategy` enum.
@@ -111,43 +111,32 @@ testbed.
     - Extended `RunStatistics` and `AdversarialHarness` to consume topology metrics.
     - Updated `compute_fitness` to reward isolation capability (fraction of isolated cells) as 10% of the score.
     - Verified via updated unit tests.
-- Started Phase 3: Swarm Immune Response:
-    - Created `src/immune.rs` with `ThreatEvent` and `SwarmConsensus` models.
-    - Updated `CellState` to include `immune_memory`.
-    - Implemented distributed anomaly detection in `SecurityCell::tick` (cells can `ReportAnomaly`).
-    - Implemented coordinated quarantine (cells disconnect based on neighbor `consensus` signals).
-    - Added `anomaly_sensitivity` to `CellGenome` and enabled its mutation.
-    - Verified behavior with `test_swarm_coordinated_quarantine` and `test_anomaly_detection_report`.
-- Implemented Simulated TPM Attestation:
-    - Defined `TPM` and `Attestation` structs in `src/immune.rs`.
-    - Updated `Signal` to carry an optional `Attestation`.
-    - Integrated `TPM` into `SecurityCell` for signing anomaly reports.
-    - Enforced signature verification (`TPM::verify`) for `consensus` signals in `SecurityCell::tick`.
-    - Verified with tests to ensure only attested consensus signals trigger quarantine.
-- Integrated Immune Memory into Lifecycle:
-    - Refactored adaptation logic to `adapt_to_event` for incremental updates.
-    - Enabled automatic genome hardening when surviving anomalies.
-    - Implemented `immune_memory` inheritance during replication.
-    - Created `scripts/visualize_trust_graph.py` to highlight voting cells in the swarm.
+- **Phase 3: Swarm Immune Response Completed**:
+    - Created `src/immune.rs` with `ThreatEvent`, `SwarmConsensus`, `TPM`, and `Attestation` models.
+    - Updated `CellState` to include `immune_memory` and `neighbor_trust`.
+    - Implemented hardware-backed trust verification using simulated TPM attestation.
+    - Implemented reputation-based trust scores and dynamic link isolation.
+    - Enabled cross-generational acquired immunity via memory inheritance.
+    - Created `scripts/visualize_trust_graph.py` to monitor swarm coordination.
+    - Authored `docs/swarm-immune-response.md` and updated existing documentation.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up 
-- Implement distributed anomaly detection refined with attestation scores.
-- Visualize the "trust graph" (who trusts who based on attestation).
+- Start Phase 4: Controlled Evolution Validation.
+- Design a large-scale "Evo-Devo" experiment to verify multi-generational immune evolution.
                                                                                                                                                        
 ## Session Log 
 ### 2025-12-27 — Session 55
-- **Focus**: Phase 3: Swarm Immune Response.
+- **Focus**: Launch Phase 3: Swarm Immune Response.
 - **Actions**:
-    - Defined `ThreatEvent` and `SwarmConsensus` in `src/immune.rs`.
-    - Integrated `immune_memory` into `CellState`.
-    - Added `ReportAnomaly` to `CellAction` and handled it in `MorphogeneticApp` via `consensus` signaling.
-    - Implemented coordinated quarantine logic in `SecurityCell`.
-    - Implemented simulated TPM attestation logic.
-    - Integrated immune memory into the cell lifecycle (adaptation and inheritance).
-    - Created `scripts/visualize_trust_graph.py` and added `VoteCast` telemetry.
+    - Defined `ThreatEvent`, `SwarmConsensus`, `TPM`, and `Attestation` in `src/immune.rs`.
+    - Integrated `immune_memory` and `neighbor_trust` into `CellState`.
+    - Implemented coordinated quarantine, trust scores, and hardware attestation.
+    - Integrated immune adaptation and memory inheritance into the cell lifecycle.
+    - Created `scripts/visualize_trust_graph.py`.
+    - Comprehensive documentation update: `docs/swarm-immune-response.md`, `signal-taxonomy.md`, `telemetry-analysis.md`, and `README.md`.
     - Verified with unit tests.
 - **Next Session Starting Point**:
-    - Refine anomaly detection with "trust scores" based on attestation frequency.
+    - Begin Phase 4 Validation Experiments.

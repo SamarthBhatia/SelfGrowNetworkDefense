@@ -7,6 +7,7 @@ Morphogenetic security agents coordinate through lightweight signal topics. Use 
 - `activator`: Amplifies perceived threat in a region. Automatically emitted when the threat profile exceeds `spike_threshold`. Use external activator stimuli to simulate sudden attack bursts or red-team actions.
 - `inhibitor`: Dampens threat perception and encourages healing or energy recovery. Schedule inhibitor pulses to emulate remediation teams or fail-safes.
 - `cooperative`: Encourages specialization toward encryption or coordination tasks. Useful when devices must harden communications after an incident.
+- `consensus:<topic>`: Swarm-level voting signals. Automatically emitted when a cell detects an anomaly. These signals require valid TPM attestation to influence neighbor behavior.
 
 ## Design Principles
 
