@@ -1,6 +1,9 @@
 //! Swarm immune response and distributed anomaly detection logic.
 
 use serde::{Deserialize, Serialize};
+use std::sync::{Mutex, OnceLock};
+use rand::Rng;
+use std::collections::HashMap;
 
 /// A recorded threat event in a cell's local memory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,14 +29,29 @@ pub struct Attestation {
 pub struct TPM {
     pub cell_id: String,
     pub compromised: bool,
-    // Secret key for signing (simulated)
+    // Secret key for signing (simulated, private)
     secret: String,
+}
+
+/// Mock Public Key Infrastructure to verify signatures without exposing secrets.
+pub struct PKI;
+
+static MOCK_REGISTRY: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+fn get_registry() -> &'static Mutex<HashMap<String, String>> {
+    MOCK_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 impl TPM {
     pub fn new(cell_id: String) -> Self {
-        // Deterministic secret generation for simulation (acts as a mock PKI)
-        let secret = format!("{:x}", md5::compute(format!("root_secret_{}", cell_id)));
+        // Generate a random non-derivable secret
+        let mut rng = rand::thread_rng();
+        let salt: u64 = rng.r#gen();
+        let secret = format!("{:x}", md5::compute(format!("{}{}", cell_id, salt)));
+        
+        // Register it in the "hardware" registry
+        get_registry().lock().unwrap().insert(cell_id.clone(), secret.clone());
+        
         Self {
             cell_id,
             compromised: false,
@@ -46,7 +64,7 @@ impl TPM {
             None
         } else {
             let payload_hash = format!("{:x}", md5::compute(payload));
-            // Signature depends on secret, step, and payload hash
+            // Sign with private secret
             let signature = format!("{:x}", md5::compute(format!("{}_{}_{}", self.secret, step, payload_hash)));
             Some(Attestation {
                 cell_id: self.cell_id.clone(),
@@ -62,19 +80,21 @@ impl TPM {
         if !attestation.valid {
             return false;
         }
-        // Relaxed freshness check: allow signals from current step or immediate past step
         if attestation.step > current_step || (current_step - attestation.step) > 1 {
             return false; 
         }
         let expected_hash = format!("{:x}", md5::compute(payload));
         if attestation.payload_hash != expected_hash {
-            return false; // Integrity check
+            return false; 
         }
         
-        // Re-derive secret (Simulating PKI lookup)
-        let secret = format!("{:x}", md5::compute(format!("root_secret_{}", attestation.cell_id)));
-        let expected_sig = format!("{:x}", md5::compute(format!("{}_{}_{}", secret, attestation.step, expected_hash)));
-        
-        attestation.signature == expected_sig
+        // Retrieve secret from secure registry (simulating PKI verification)
+        let registry = get_registry().lock().unwrap();
+        if let Some(secret) = registry.get(&attestation.cell_id) {
+            let expected_sig = format!("{:x}", md5::compute(format!("{}_{}_{}", secret, attestation.step, expected_hash)));
+            attestation.signature == expected_sig
+        } else {
+            false // Unknown device
+        }
     }
 }

@@ -130,6 +130,10 @@ testbed.
     - **Secure Simulated TPM:** Added a private `secret` to the `TPM` struct and used it to salt the signature generation, preventing trivial forgery by peers.
     - **Cleanup:** Removed unused `SwarmConsensus` struct.
     - **Verification:** All tests passed with the hardened logic.
+- **Code Review Fixes**:
+    - Removed redundant `TPM` struct definition.
+    - Fixed duplicate imports in `src/immune.rs`.
+    - Corrected keyword usage in `TPM::new`.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -146,6 +150,7 @@ testbed.
     - Upgraded `TPM` to use a `secret` salt for signatures.
     - Fixed consensus payload formatting to match broadcast signals.
     - Cleaned up vestigial code.
+    - Fixed duplicate imports and definitions in `src/immune.rs`.
     - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.
