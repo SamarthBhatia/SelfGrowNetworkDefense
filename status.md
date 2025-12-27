@@ -65,7 +65,7 @@ testbed.
 - Updated `perform_crossover` to use `two_point_crossover_stimulus` when the `TwoPoint` strategy is selected.
 - Added a unit test for `two_point_crossover_stimulus`.
 - Updated `EvolutionConfig::default_smoke_test()` to use the new `TwoPoint` crossover strategy.
-- Fixed a compilation error in the test suite by correctly instantiating `StimulusCommand`.
+- Fixed a compilation error in the test suite by correctly instating `StimulusCommand`.
 - Added a `lineage_fitness_history` field to `AdversarialHarness` to track lineage fitness.
 - Updated `AdversarialHarness::record_outcome` to populate the `lineage_fitness_history`.
 - Added `Targeted` variant to the `MutationStrategy` enum.
@@ -124,23 +124,30 @@ testbed.
     - Integrated `TPM` into `SecurityCell` for signing anomaly reports.
     - Enforced signature verification (`TPM::verify`) for `consensus` signals in `SecurityCell::tick`.
     - Verified with tests to ensure only attested consensus signals trigger quarantine.
+- Integrated Immune Memory into Lifecycle:
+    - Refactored adaptation logic to `adapt_to_event` for incremental updates.
+    - Enabled automatic genome hardening when surviving anomalies.
+    - Implemented `immune_memory` inheritance during replication.
+    - Created `scripts/visualize_trust_graph.py` to highlight voting cells in the swarm.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up 
-- Refine immune memory to allow genome "hardening" against specific threat topics (partially implemented in `apply_immune_memory`, need to hook it into replication or adaptation events).
+- Implement distributed anomaly detection refined with attestation scores.
 - Visualize the "trust graph" (who trusts who based on attestation).
                                                                                                                                                        
 ## Session Log 
 ### 2025-12-27 — Session 55
-- **Focus**: Launch Phase 3: Swarm Immune Response.
+- **Focus**: Phase 3: Swarm Immune Response.
 - **Actions**:
     - Defined `ThreatEvent` and `SwarmConsensus` in `src/immune.rs`.
     - Integrated `immune_memory` into `CellState`.
     - Added `ReportAnomaly` to `CellAction` and handled it in `MorphogeneticApp` via `consensus` signaling.
     - Implemented coordinated quarantine logic in `SecurityCell`.
     - Implemented simulated TPM attestation logic.
+    - Integrated immune memory into the cell lifecycle (adaptation and inheritance).
+    - Created `scripts/visualize_trust_graph.py` and added `VoteCast` telemetry.
     - Verified with unit tests.
 - **Next Session Starting Point**:
-    - Hook `apply_immune_memory` into the lifecycle (e.g., during replication or specific "hardening" events).
+    - Refine anomaly detection with "trust scores" based on attestation frequency.

@@ -347,18 +347,25 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                                                          confidence,
                                                      },
                                                  );
-                                                 // Also publish a 'consensus' signal to neighbors
-                                                 self.signal_bus.publish(Signal {
-                                                     topic: format!("consensus:{}", topic),
-                                                     value: confidence,
-                                                     source: Some(cell_id),
-                                                     target: None,
-                                                     attestation,
-                                                 });
-                                             }
-                                 
-                             }
-                         }
+                                                                 // Also publish a 'consensus' signal to neighbors
+                                                                 self.signal_bus.publish(Signal {
+                                                                     topic: format!("consensus:{}", topic),
+                                                                     value: confidence,
+                                                                     source: Some(cell_id.clone()),
+                                                                     target: None,
+                                                                     attestation,
+                                                                 });
+                                                                 self.telemetry.record(
+                                                                     SystemTime::now(),
+                                                                     TelemetryEvent::VoteCast {
+                                                                         cell_id,
+                                                                         target_topic: topic,
+                                                                     },
+                                                                 );
+                                                             }
+                                                         }
+                                                     }
+                                                 
                          #[allow(dead_code)]
     pub fn telemetry(&self) -> &TSink {
         &self.telemetry

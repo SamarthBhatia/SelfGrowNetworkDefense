@@ -42,6 +42,10 @@ pub enum TelemetryEvent {
         topic: String,
         confidence: f32,
     },
+    VoteCast {
+        cell_id: String,
+        target_topic: String,
+    },
     StepSummary {
         step: u32,
         threat_score: f32,
