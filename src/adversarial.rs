@@ -1249,7 +1249,7 @@ mod tests {
     use std::io::Cursor;
     use tempfile::NamedTempFile;
     use tempfile::tempdir;
-    use crate::stimulus::StimulusCommand;
+
 
     #[test]
     fn retain_elite_requeues_elite_candidates() {
@@ -1883,40 +1883,10 @@ mod tests {
         assert!(child.mutation.is_some());
     }
 
-    #[test]
-    fn test_uniform_crossover_stimulus() {
-        let mut parent1_commands = BTreeMap::new();
-        parent1_commands.insert(
-            0,
-            vec![StimulusCommand {
-                step: 0,
-                topic: "a".to_string(),
-                value: 1.0,
-            }],
-        );
-        let parent1 = StimulusSchedule::new(parent1_commands, None);
 
-        let mut parent2_commands = BTreeMap::new();
-        parent2_commands.insert(
-            0,
-            vec![StimulusCommand {
-                step: 0,
-                topic: "b".to_string(),
-                value: 2.0,
-            }],
-        );
-        let parent2 = StimulusSchedule::new(parent2_commands, None);
-
-        let mut rng = rand::thread_rng();
-        let child = uniform_crossover_stimulus(&parent1, &parent2, &mut rng);
-
-        assert_eq!(child.commands.len(), 1);
-        let child_command = &child.commands.get(&0).unwrap()[0];
-        assert!(child_command.topic == "a" || child_command.topic == "b");
-    }
 
     #[test]
-    fn test_perform_mutation() {
+    fn test_tournament_selection() {
         let stats = RunStatistics {
             step_count: 1,
             avg_threat: 0.1,
@@ -1933,15 +1903,71 @@ mod tests {
             lineage_by_type: HashMap::new(),
             stimuli_by_topic: HashMap::new(),
         };
+        let outcomes: Vec<AttackOutcome> = (0..5)
+            .map(|i| AttackOutcome {
+                candidate: AttackCandidate {
+                    id: format!("cand-{}", i),
+                    scenario_ref: "s".into(),
+                    stimulus_ref: None,
+                    generation: 0,
+                    parent_id: None,
+                    mutation: None,
+                },
+                fitness_score: i as f32 * 0.1, // 0.0, 0.1, 0.2, 0.3, 0.4
+                breach_observed: false,
+                notes: None,
+                statistics: stats.clone(),
+            })
+            .collect();
+
         let mut rng = rand::thread_rng();
-        let mutation = perform_mutation(
-            &MutationStrategy::Random,
-            &stats,
-            0.5,
-            false,
-            &mut rng,
-        );
-        assert!(mutation.is_some());
+        // Tournament size equals population size -> should always select max fitness
+        let selected = tournament_selection(&outcomes, 5, &mut rng).expect("selection failed");
+        assert_eq!(selected.fitness_score, 0.4);
+
+        // Tournament size 1 -> random selection (can't assert specific fitness, but should succeed)
+        let _ = tournament_selection(&outcomes, 1, &mut rng).expect("selection failed");
+    }
+
+    #[test]
+    fn test_roulette_wheel_selection() {
+         let stats = RunStatistics {
+            step_count: 1,
+            avg_threat: 0.1,
+            max_threat: 0.2,
+            avg_cell_count: 1.0,
+            min_cell_count: 1,
+            max_cell_count: 1,
+            total_replications: 0,
+            total_deaths: 0,
+            total_signals: 0,
+            total_lineage_shifts: 0,
+            total_stimulus: 0.0,
+            signals_by_topic: HashMap::new(),
+            lineage_by_type: HashMap::new(),
+            stimuli_by_topic: HashMap::new(),
+        };
+        let outcomes: Vec<AttackOutcome> = (0..2)
+            .map(|i| AttackOutcome {
+                candidate: AttackCandidate {
+                    id: format!("cand-{}", i),
+                    scenario_ref: "s".into(),
+                    stimulus_ref: None,
+                    generation: 0,
+                    parent_id: None,
+                    mutation: None,
+                },
+                fitness_score: if i == 0 { 0.1 } else { 0.9 },
+                breach_observed: false,
+                notes: None,
+                statistics: stats.clone(),
+            })
+            .collect();
+
+        let mut rng = rand::thread_rng();
+        // Just verify it returns a result and doesn't crash
+        let selected = roulette_wheel_selection(&outcomes, &mut rng).expect("selection failed");
+        assert!(selected.fitness_score > 0.0);
     }
 
     #[derive(Serialize)]

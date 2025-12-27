@@ -12,6 +12,8 @@ pub struct StimulusCommand {
     pub step: u32,
     pub topic: String,
     pub value: f32,
+    #[serde(default)]
+    pub target: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -189,11 +191,13 @@ mod tests {
             step: 2,
             topic: "activator".into(),
             value: 0.8,
+            target: None,
         };
         let cmd_b = StimulusCommand {
             step: 2,
             topic: "inhibitor".into(),
             value: 0.4,
+            target: None,
         };
         schedule
             .commands
@@ -217,6 +221,7 @@ mod tests {
             step: 5,
             topic: "activator".into(),
             value: 0.9,
+            target: None,
         };
 
         append_command(&path, &command).expect("append should succeed");
@@ -238,11 +243,13 @@ mod tests {
             step: 5,
             topic: "topic1".into(),
             value: 1.0,
+            target: None,
         };
         let cmd_b = StimulusCommand {
             step: 10,
             topic: "topic2".into(),
             value: 2.0,
+            target: None,
         };
         schedule.commands.entry(5).or_default().push(cmd_a.clone());
         schedule.commands.entry(10).or_default().push(cmd_b.clone());
