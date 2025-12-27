@@ -206,14 +206,32 @@ fn simulate_candidate(
         fs::copy(&stimulus_source_path, &destination)?;
         persisted_stimulus = Some(destination);
         stimulus_schedule = Some(StimulusSchedule::load(&stimulus_source_path).map_err(HarnessError::Io)?);
+    } else if let Some(default_path) = _default_stimulus {
+        // Fallback to default stimulus if provided
+        let destination = run_dir.join("stimulus.jsonl");
+        fs::copy(default_path, &destination)?;
+        persisted_stimulus = Some(destination);
+        stimulus_schedule = Some(StimulusSchedule::load(default_path).map_err(HarnessError::Io)?);
     }
 
 
     if let Some(mutation) = &candidate.mutation {
-        scenario_config.apply_mutation(mutation);
-        if let Some(s) = &mut stimulus_schedule {
-            s.apply_mutation(mutation);
-        }
+        // Only apply mutation if not already applied (i.e. if scenario was loaded from original path)
+        // But wait, simulate_candidate loads from candidate.scenario_ref which IS the mutated path 
+        // IF applied by apply_mutation_and_generate_files.
+        // However, we still need to apply mutation to stimulus_schedule if it wasn't persisted?
+        // Actually apply_mutation_and_generate_files persists BOTH.
+        // So we should NOT apply mutation here again if files were already generated.
+        // But simulate_candidate might be called with original file paths if not coming from run_generations loop?
+        // Let's assume if it's a generated file (has "gen" in path?), we don't mutate?
+        // Better: apply_mutation_and_generate_files returns new paths.
+        // If candidate.scenario_ref points to a file that already has mutation applied, applying it again is bad.
+        // The `run_generations` closure updates `candidate.scenario_ref` to the *mutated* path.
+        // So `simulate_candidate` loads the *mutated* file.
+        // Then it applies the mutation *again* in memory. This is the double application.
+        // Fix: Remove this block entirely for scenario_config.
+        // For stimulus_schedule, it's also loaded from mutated file if stimulus_ref was updated.
+        // So remove this block entirely.
     }
 
     let telemetry = TelemetryPipeline::with_file(&telemetry_path).map_err(HarnessError::Io)?;
@@ -223,6 +241,12 @@ fn simulate_candidate(
     for idx in 0..cell_count {
         let mut cell = SecurityCell::new(format!("seed-{idx}"));
         cell.genome.reproduction_threshold = scenario_config.threat_profile.spike_threshold;
+        // Adjust reproduction energy cost or other parameter based on rate?
+        // High rate -> low cost or low threshold?
+        // Let's scale reproduction_energy_cost inversely to rate.
+        if scenario_config.cell_reproduction_rate > 0.0 {
+             cell.genome.reproduction_energy_cost /= scenario_config.cell_reproduction_rate;
+        }
         cells.push(cell);
     }
 
@@ -241,6 +265,9 @@ fn simulate_candidate(
                 target: None,
                 attestation: None,
             });
+            // Record automatic spike in ledger
+            let entry = stimulus_ledger.entry(step).or_default();
+            *entry.entry("activator".to_string()).or_insert(0.0) += threat;
         }
 
         if let Some(schedule) = stimulus_schedule.as_mut() {

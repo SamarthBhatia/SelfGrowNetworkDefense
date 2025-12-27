@@ -18,6 +18,9 @@ fn main() {
     for idx in 0..cell_count {
         let mut cell = SecurityCell::new(format!("seed-{idx}"));
         cell.genome.reproduction_threshold = config.threat_profile.spike_threshold;
+        if config.cell_reproduction_rate > 0.0 {
+            cell.genome.reproduction_energy_cost /= config.cell_reproduction_rate;
+        }
         cells.push(cell);
     }
 

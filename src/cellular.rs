@@ -228,7 +228,10 @@ impl SecurityCell {
         let mut activator = 0.0;
         let mut inhibitor = 0.0;
         let mut cooperative = 0.0;
-        let mut consensus_votes = 0.0;
+        let mut accused_votes: HashMap<String, f32> = HashMap::new();
+
+        // 0. Trust Pruning: remove trust entries for neighbors no longer detected
+        self.state.neighbor_trust.retain(|id, _| environment.detected_neighbors.contains(id));
 
         for signal in &environment.neighbor_signals {
             if let Some(source) = &signal.source {
@@ -236,14 +239,12 @@ impl SecurityCell {
                 
                 // Penalize if source is untrusted (below min_trust_threshold)
                 if trust < self.genome.min_trust_threshold {
-                    // Ignore signals from untrusted neighbors, or maybe even disconnect?
-                    // Let's implement active disconnection later in this function.
                     continue; 
                 }
 
-                // Verify attestation if present
+                // Verify attestation if present and bind it to the source
                 if let Some(attestation) = &signal.attestation {
-                    if TPM::verify(attestation) {
+                    if attestation.cell_id == *source && TPM::verify(attestation) {
                         *self.state.neighbor_trust.entry(source.clone()).or_insert(0.5) = 
                             (trust + self.genome.trust_reward).min(1.0);
                     } else {
@@ -262,10 +263,13 @@ impl SecurityCell {
                 "inhibitor" => inhibitor += signal.value,
                 "cooperative" => cooperative += signal.value,
                 topic if topic.starts_with("consensus:") => {
-                    // Only count vote if attestation is valid
-                    if let Some(attestation) = &signal.attestation {
-                        if TPM::verify(attestation) {
-                            consensus_votes += signal.value;
+                    // Only count vote if attestation is valid and bound to source
+                    if let (Some(source), Some(attestation)) = (&signal.source, &signal.attestation) {
+                        if attestation.cell_id == *source && TPM::verify(attestation) {
+                            // If signal has a target, that's the accused. 
+                            // Otherwise, the source is reporting itself or its vicinity as anomalous.
+                            let accused = signal.target.clone().unwrap_or_else(|| source.clone());
+                            *accused_votes.entry(accused).or_insert(0.0) += signal.value;
                         }
                     }
                 }
@@ -273,8 +277,16 @@ impl SecurityCell {
             }
         }
 
-        // Active disconnection from untrusted neighbors
-        for (neighbor, trust) in &self.state.neighbor_trust {
+        // 1. Coordinated Quarantine: Disconnect from neighbors with high consensus votes
+        for (accused, votes) in &accused_votes {
+            if *votes > 1.5 && environment.detected_neighbors.contains(accused) {
+                return CellAction::Disconnect(accused.clone());
+            }
+        }
+
+        // 2. Trust-based Isolation: Active disconnection from untrusted neighbors
+        for neighbor in &environment.detected_neighbors {
+            let trust = self.state.neighbor_trust.get(neighbor).unwrap_or(&0.5);
             if *trust < self.genome.min_trust_threshold {
                 return CellAction::Disconnect(neighbor.clone());
             }
@@ -296,14 +308,7 @@ impl SecurityCell {
             return CellAction::Die;
         }
 
-        // 1. Coordinated Quarantine: Disconnect if neighbors reach consensus on high threat
-        if consensus_votes > 1.5 && !environment.detected_neighbors.is_empty() {
-             if let Some(target) = environment.detected_neighbors.first() {
-                 return CellAction::Disconnect(target.clone());
-             }
-        }
-
-        // 2. Individual Isolation
+        // 3. Individual Isolation
         if self.state.stress_level > self.genome.isolation_threshold && !environment.detected_neighbors.is_empty() {
              if let Some(target) = environment.detected_neighbors.first() {
                  return CellAction::Disconnect(target.clone());
@@ -315,10 +320,13 @@ impl SecurityCell {
            && effective_threat > self.genome.anomaly_sensitivity 
            && inhibitor < 0.2 // Not being suppressed
         {
-            // Record in memory if not already there recently
-            if !self.state.immune_memory.iter().any(|e| e.topic == "activator" && e.step > 0) {
+            // Record in memory if not already there recently (cooldown of 50 steps)
+            let recent_match = self.state.immune_memory.iter()
+                .any(|e| e.topic == "activator" && environment.step.saturating_sub(e.step) < 50);
+            
+            if !recent_match {
                 let event = ThreatEvent {
-                    step: environment.step, // Use actual step
+                    step: environment.step, 
                     topic: "activator".to_string(),
                     magnitude: effective_threat,
                     confidence: 0.8,

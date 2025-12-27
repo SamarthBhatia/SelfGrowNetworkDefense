@@ -62,17 +62,3 @@ impl TPM {
         attestation.valid && attestation.signature.starts_with("sig_")
     }
 }
-
-impl SwarmConsensus {
-    pub fn cast_vote(&mut self, topic: String) {
-        *self.votes.entry(topic).or_insert(0) += 1;
-    }
-
-    pub fn check_consensus(&mut self, threshold: u32) {
-        for (topic, count) in &self.votes {
-            if *count >= threshold && !self.confirmed.contains(topic) {
-                self.confirmed.push(topic.clone());
-            }
-        }
-    }
-}
