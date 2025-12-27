@@ -7,6 +7,7 @@ pub mod orchestration;
 pub mod signaling;
 pub mod stimulus;
 pub mod telemetry;
+pub mod immune;
 
 pub use adversarial::{
     AdversarialHarness, AttackCandidate, AttackOutcome, EvaluatedCandidate, EvolutionConfig,

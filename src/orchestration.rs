@@ -155,6 +155,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
             };
 
             let environment = CellEnvironment {
+                step: step_index,
                 local_threat_score: threat_score,
                 neighbor_signals,
                 detected_neighbors: self.neighbors.get(&cell.id).cloned().unwrap_or_default(),
@@ -346,13 +347,30 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                              source: cell_id,
                              target: target_id,
                          },
-                     );
-                 }
-            }
-        }
-    }
-
-    #[allow(dead_code)]
+                                          );
+                                     }
+                                 }
+                                 CellAction::ReportAnomaly(topic, confidence) => {
+                                     let cell_id = self.cells[index].id.clone();
+                                     self.telemetry.record(
+                                         SystemTime::now(),
+                                         TelemetryEvent::AnomalyDetected {
+                                             cell_id: cell_id.clone(),
+                                             topic: topic.clone(),
+                                             confidence,
+                                         },
+                                     );
+                                     // Also publish a 'consensus' signal to neighbors
+                                     self.signal_bus.publish(Signal {
+                                         topic: format!("consensus:{}", topic),
+                                         value: confidence,
+                                         source: Some(cell_id),
+                                         target: None,
+                                     });
+                                 }
+                             }
+                         }
+                         #[allow(dead_code)]
     pub fn telemetry(&self) -> &TSink {
         &self.telemetry
     }

@@ -37,6 +37,11 @@ pub enum TelemetryEvent {
         source: String,
         target: String,
     },
+    AnomalyDetected {
+        cell_id: String,
+        topic: String,
+        confidence: f32,
+    },
     StepSummary {
         step: u32,
         threat_score: f32,

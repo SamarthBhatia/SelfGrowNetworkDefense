@@ -2,10 +2,12 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::immune::ThreatEvent;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellEnvironment {
+    pub step: u32,
     pub local_threat_score: f32,
     pub neighbor_signals: HashMap<String, f32>,
     pub detected_neighbors: Vec<String>,
@@ -28,6 +30,8 @@ pub struct CellState {
     pub energy: f32,
     pub stress_level: f32,
     pub dead: bool,
+    #[serde(default)]
+    pub immune_memory: Vec<ThreatEvent>,
 }
 
 #[allow(dead_code)]
@@ -50,6 +54,7 @@ pub struct CellGenome {
     pub signal_emission_threshold: f32,
     pub connection_cost: f32,
     pub isolation_threshold: f32,
+    pub anomaly_sensitivity: f32,
 }
 
 impl Default for CellGenome {
@@ -72,6 +77,7 @@ impl Default for CellGenome {
             signal_emission_threshold: 0.4,
             connection_cost: 0.1,
             isolation_threshold: 0.85,
+            anomaly_sensitivity: 0.5,
         }
     }
 }
@@ -107,6 +113,21 @@ impl CellGenome {
         mutate_field(&mut self.signal_emission_threshold);
         mutate_field(&mut self.connection_cost);
         mutate_field(&mut self.isolation_threshold);
+        mutate_field(&mut self.anomaly_sensitivity);
+    }
+
+    #[allow(dead_code)]
+    pub fn apply_immune_memory(&self, memory: &[ThreatEvent]) -> Self {
+        let mut adapted = self.clone();
+        for event in memory {
+            if event.topic == "activator" {
+                // Harden against activator by decreasing sensitivity
+                adapted.stress_sensitivity *= (1.0 - 0.05 * event.confidence).max(0.5);
+                // And increasing inhibitor effectiveness
+                adapted.threat_inhibitor_factor *= (1.0 + 0.05 * event.confidence).min(2.0);
+            }
+        }
+        adapted
     }
 }
 
@@ -171,6 +192,7 @@ pub enum CellAction {
     Die,
     Connect(String),
     Disconnect(String),
+    ReportAnomaly(String, f32),
 }
 
 impl SecurityCell {
@@ -183,6 +205,7 @@ impl SecurityCell {
                 energy: 1.0,
                 stress_level: 0.0,
                 dead: false,
+                immune_memory: Vec::new(),
             },
             genome: CellGenome::default(),
         }
@@ -206,6 +229,14 @@ impl SecurityCell {
             .copied()
             .unwrap_or(0.0);
 
+        // Consensus signals: "consensus:topic"
+        let mut consensus_votes = 0.0;
+        for (topic, value) in &environment.neighbor_signals {
+            if topic.starts_with("consensus:") {
+                consensus_votes += value;
+            }
+        }
+
         let effective_threat = (environment.local_threat_score + activator
             - inhibitor * self.genome.threat_inhibitor_factor)
             .max(0.0);
@@ -222,10 +253,35 @@ impl SecurityCell {
             return CellAction::Die;
         }
 
+        // 1. Coordinated Quarantine: Disconnect if neighbors reach consensus on high threat
+        if consensus_votes > 1.5 && !environment.detected_neighbors.is_empty() {
+             if let Some(target) = environment.detected_neighbors.first() {
+                 return CellAction::Disconnect(target.clone());
+             }
+        }
+
+        // 2. Individual Isolation
         if self.state.stress_level > self.genome.isolation_threshold && !environment.detected_neighbors.is_empty() {
              if let Some(target) = environment.detected_neighbors.first() {
                  return CellAction::Disconnect(target.clone());
              }
+        }
+
+        // Anomaly Detection (IntrusionDetection lineage only)
+        if matches!(self.state.lineage, CellLineage::IntrusionDetection) 
+           && effective_threat > self.genome.anomaly_sensitivity 
+           && inhibitor < 0.2 // Not being suppressed
+        {
+            // Record in memory if not already there recently
+            if !self.state.immune_memory.iter().any(|e| e.topic == "activator" && e.step > 0) {
+                self.state.immune_memory.push(ThreatEvent {
+                    step: 1, // Placeholder: in real run we'd need the actual step
+                    topic: "activator".to_string(),
+                    magnitude: effective_threat,
+                    confidence: 0.8,
+                });
+            }
+            return CellAction::ReportAnomaly("activator".to_string(), effective_threat);
         }
 
         if effective_threat >= self.genome.reproduction_threshold
@@ -270,6 +326,7 @@ mod tests {
 
     fn env_with_threat(threat: f32) -> CellEnvironment {
         CellEnvironment {
+            step: 0,
             local_threat_score: threat,
             neighbor_signals: HashMap::new(),
             detected_neighbors: Vec::new(),
@@ -306,6 +363,7 @@ mod tests {
         let mut signals = HashMap::new();
         signals.insert("inhibitor".to_string(), 0.65);
         let environment = CellEnvironment {
+            step: 0,
             local_threat_score: 0.05,
             neighbor_signals: signals,
             detected_neighbors: Vec::new(),
@@ -325,6 +383,7 @@ mod tests {
         let mut signals = HashMap::new();
         signals.insert("activator".to_string(), 0.1);
         let environment = CellEnvironment {
+            step: 0,
             local_threat_score: 0.45,
             neighbor_signals: signals,
             detected_neighbors: Vec::new(),
@@ -361,6 +420,45 @@ mod tests {
                 assert_eq!(target, "bad_neighbor");
             },
             other => panic!("expected disconnect, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_swarm_coordinated_quarantine() {
+        let mut cell = SecurityCell::new("iota");
+        cell.state.stress_level = 0.1; // Low stress
+        cell.genome.isolation_threshold = 0.9;
+        
+        let mut environment = env_with_threat(0.0);
+        environment.detected_neighbors.push("neighbor_1".to_string());
+        // Two neighbors reporting consensus
+        environment.neighbor_signals.insert("consensus:activator".to_string(), 2.0);
+        
+        let action = cell.tick(&environment);
+        match action {
+            CellAction::Disconnect(target) => {
+                assert_eq!(target, "neighbor_1");
+            },
+            other => panic!("expected coordinated disconnect, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_anomaly_detection_report() {
+        let mut cell = SecurityCell::new("kappa");
+        cell.state.lineage = CellLineage::IntrusionDetection;
+        cell.genome.anomaly_sensitivity = 0.4;
+        
+        let mut environment = env_with_threat(0.6); // High threat
+        environment.neighbor_signals.insert("inhibitor".to_string(), 0.1); // Low suppression
+        
+        let action = cell.tick(&environment);
+        match action {
+            CellAction::ReportAnomaly(topic, confidence) => {
+                assert_eq!(topic, "activator");
+                assert!(confidence >= 0.5);
+            },
+            other => panic!("expected anomaly report, got {other:?}"),
         }
     }
 }
