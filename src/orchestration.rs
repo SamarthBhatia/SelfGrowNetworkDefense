@@ -225,8 +225,9 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
             CellAction::Idle => {}
             CellAction::Replicate(child_id) => {
                 let mut child = SecurityCell::new(child_id.clone());
-                // Inherit genome from parent
+                // Inherit genome and immune memory from parent
                 child.genome = self.cells[index].genome.clone();
+                child.state.immune_memory = self.cells[index].state.immune_memory.clone();
                 child.genome.mutate();
 
                 let parent_id = self.cells[index].id.clone();

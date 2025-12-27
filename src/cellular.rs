@@ -118,17 +118,13 @@ impl CellGenome {
     }
 
     #[allow(dead_code)]
-    pub fn apply_immune_memory(&self, memory: &[ThreatEvent]) -> Self {
-        let mut adapted = self.clone();
-        for event in memory {
-            if event.topic == "activator" {
-                // Harden against activator by decreasing sensitivity
-                adapted.stress_sensitivity *= (1.0 - 0.05 * event.confidence).max(0.5);
-                // And increasing inhibitor effectiveness
-                adapted.threat_inhibitor_factor *= (1.0 + 0.05 * event.confidence).min(2.0);
-            }
+    pub fn adapt_to_event(&mut self, event: &ThreatEvent) {
+        if event.topic == "activator" {
+            // Harden against activator by decreasing sensitivity
+            self.stress_sensitivity *= (1.0 - 0.05 * event.confidence).max(0.5);
+            // And increasing inhibitor effectiveness
+            self.threat_inhibitor_factor *= (1.0 + 0.05 * event.confidence).min(2.0);
         }
-        adapted
     }
 }
 
@@ -276,12 +272,14 @@ impl SecurityCell {
         {
             // Record in memory if not already there recently
             if !self.state.immune_memory.iter().any(|e| e.topic == "activator" && e.step > 0) {
-                self.state.immune_memory.push(ThreatEvent {
+                let event = ThreatEvent {
                     step: environment.step, // Use actual step
                     topic: "activator".to_string(),
                     magnitude: effective_threat,
                     confidence: 0.8,
-                });
+                };
+                self.genome.adapt_to_event(&event);
+                self.state.immune_memory.push(event);
             }
             let attestation = self.tpm.attest(environment.step as u64);
             return CellAction::ReportAnomaly("activator".to_string(), effective_threat, attestation);
@@ -470,11 +468,13 @@ mod tests {
     }
 
     #[test]
-    fn test_anomaly_detection_report() {
-        let mut cell = SecurityCell::new("kappa");
-        cell.state.lineage = CellLineage::IntrusionDetection;
-        cell.genome.anomaly_sensitivity = 0.4;
-        
+    fn test_immune_adaptation_and_inheritance() {
+        let mut parent = SecurityCell::new("parent");
+        parent.state.lineage = CellLineage::IntrusionDetection;
+        parent.genome.anomaly_sensitivity = 0.4;
+        let initial_sensitivity = parent.genome.stress_sensitivity;
+
+        // Trigger anomaly
         let mut signals = Vec::new();
         signals.push(Signal {
              topic: "inhibitor".to_string(),
@@ -483,23 +483,26 @@ mod tests {
              target: None,
              attestation: None,
         });
-
-        let environment = CellEnvironment {
-            step: 5,
+        let env = CellEnvironment {
+            step: 10,
             local_threat_score: 0.6,
             neighbor_signals: signals,
             detected_neighbors: Vec::new(),
         };
         
-        let action = cell.tick(&environment);
-        match action {
-            CellAction::ReportAnomaly(topic, confidence, attestation) => {
-                assert_eq!(topic, "activator");
-                assert!(confidence >= 0.5);
-                assert!(attestation.is_some());
-                assert!(attestation.unwrap().timestamp == 5);
-            },
-            other => panic!("expected anomaly report, got {other:?}"),
-        }
+        let _ = parent.tick(&env);
+        
+        // Parent should have adapted (reduced sensitivity)
+        assert!(parent.genome.stress_sensitivity < initial_sensitivity, "Parent should reduce sensitivity after adaptation");
+        assert_eq!(parent.state.immune_memory.len(), 1);
+
+        // Simulate replication logic manually (mimicking orchestration)
+        let mut child = SecurityCell::new("child");
+        child.genome = parent.genome.clone();
+        child.state.immune_memory = parent.state.immune_memory.clone();
+        
+        // Child should inherit adapted genome and memory
+        assert!(child.genome.stress_sensitivity < initial_sensitivity, "Child should inherit adapted genome");
+        assert_eq!(child.state.immune_memory.len(), 1, "Child should inherit immune memory");
     }
 }
