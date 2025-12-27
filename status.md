@@ -125,6 +125,11 @@ testbed.
     - **Replay Protection:** Relaxed `TPM::verify` to allow 1-step delivery delay while enforcing freshness.
     - **Targeted Consensus:** Enabled cells to identify and vote specifically against misbehaving peers.
     - **Consistent Formatting:** Enforced fixed-precision float formatting in attestation payloads to avoid signature mismatches.
+- **Finalized Phase 3 Logic**:
+    - **Correct Consensus Payloads:** Updated `SecurityCell` to sign the `consensus:` prefixed topic as required by the broadcast logic.
+    - **Secure Simulated TPM:** Added a private `secret` to the `TPM` struct and used it to salt the signature generation, preventing trivial forgery by peers.
+    - **Cleanup:** Removed unused `SwarmConsensus` struct.
+    - **Verification:** All tests passed with the hardened logic.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -134,14 +139,13 @@ testbed.
 - Design a large-scale "Evo-Devo" experiment to verify multi-generational immune evolution.
                                                                                                                                                        
 ## Session Log 
-### 2025-12-27 — Session 55
-- **Focus**: Phase 3 Refinement and Hardening.
+### 2025-12-27 — Session 57
+- **Focus**: Phase 3 Final Hardening.
 - **Actions**:
-    - Defined `ThreatEvent`, `TPM`, and `Attestation` models.
-    - Implemented hardware-backed trust, trust scores, and dynamic isolation.
-    - Integrated immune adaptation and memory inheritance.
-    - Created `scripts/visualize_trust_graph.py`.
-    - Fixed critical bugs in attestation freshness, global topology trust, and consensus targeting.
-    - Verified with unit tests (35 passing).
+    - Addressed critical audit findings regarding consensus signatures and TPM forgery.
+    - Upgraded `TPM` to use a `secret` salt for signatures.
+    - Fixed consensus payload formatting to match broadcast signals.
+    - Cleaned up vestigial code.
+    - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.

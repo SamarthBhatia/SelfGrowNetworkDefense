@@ -345,9 +345,10 @@ impl SecurityCell {
                 .and_then(|s| s.source.clone());
 
             let topic = "activator".to_string();
-            // Payload MUST match: topic:value:target
+            // Payload MUST match what handle_action broadcasts: consensus:topic:value:target
+            let consensus_topic = format!("consensus:{}", topic);
             let target_str = accused_target.as_deref().unwrap_or("none");
-            let payload = format!("{}:{:.1}:{}", topic, effective_threat, target_str);
+            let payload = format!("{}:{:.1}:{}", consensus_topic, effective_threat, target_str);
             let attestation = self.tpm.attest(environment.step as u64, &payload);
             
             return CellAction::ReportAnomaly(topic, effective_threat, accused_target, attestation);
@@ -601,7 +602,8 @@ mod tests {
                 let att = attestation.unwrap();
                 assert_eq!(att.step, 5);
                 // Verify the attestation manually to ensure binding works
-                let payload = format!("{}:{}:{}", topic, confidence, "attacker");
+                // NOTE: The signed payload uses "consensus:activator"
+                let payload = format!("consensus:{}:{:.1}:{}", topic, confidence, "attacker");
                 assert!(TPM::verify(&att, 5, &payload));
             },
             other => panic!("expected anomaly report, got {other:?}"),
