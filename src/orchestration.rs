@@ -228,6 +228,10 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 // Inherit genome and immune memory from parent
                 child.genome = self.cells[index].genome.clone();
                 child.state.immune_memory = self.cells[index].state.immune_memory.clone();
+                // Child starts with fresh trust map to avoid inheriting bias/stale data? 
+                // Or should it inherit "reputation data"? 
+                // Let's inherit it for now, assuming "gossip" is passed down.
+                child.state.neighbor_trust = self.cells[index].state.neighbor_trust.clone();
                 child.genome.mutate();
 
                 let parent_id = self.cells[index].id.clone();

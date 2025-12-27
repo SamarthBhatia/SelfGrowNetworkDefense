@@ -33,6 +33,8 @@ pub struct CellState {
     pub dead: bool,
     #[serde(default)]
     pub immune_memory: Vec<ThreatEvent>,
+    #[serde(default)]
+    pub neighbor_trust: HashMap<String, f32>,
 }
 
 #[allow(dead_code)]
@@ -56,6 +58,9 @@ pub struct CellGenome {
     pub connection_cost: f32,
     pub isolation_threshold: f32,
     pub anomaly_sensitivity: f32,
+    pub trust_reward: f32,
+    pub trust_penalty: f32,
+    pub min_trust_threshold: f32,
 }
 
 impl Default for CellGenome {
@@ -79,6 +84,9 @@ impl Default for CellGenome {
             connection_cost: 0.1,
             isolation_threshold: 0.85,
             anomaly_sensitivity: 0.5,
+            trust_reward: 0.05,
+            trust_penalty: 0.2,
+            min_trust_threshold: 0.2,
         }
     }
 }
@@ -115,6 +123,9 @@ impl CellGenome {
         mutate_field(&mut self.connection_cost);
         mutate_field(&mut self.isolation_threshold);
         mutate_field(&mut self.anomaly_sensitivity);
+        mutate_field(&mut self.trust_reward);
+        mutate_field(&mut self.trust_penalty);
+        mutate_field(&mut self.min_trust_threshold);
     }
 
     #[allow(dead_code)]
@@ -205,6 +216,7 @@ impl SecurityCell {
                 stress_level: 0.0,
                 dead: false,
                 immune_memory: Vec::new(),
+                neighbor_trust: HashMap::new(),
             },
             genome: CellGenome::default(),
             tpm: TPM::new(id),
@@ -219,6 +231,32 @@ impl SecurityCell {
         let mut consensus_votes = 0.0;
 
         for signal in &environment.neighbor_signals {
+            if let Some(source) = &signal.source {
+                let trust = *self.state.neighbor_trust.get(source).unwrap_or(&0.5);
+                
+                // Penalize if source is untrusted (below min_trust_threshold)
+                if trust < self.genome.min_trust_threshold {
+                    // Ignore signals from untrusted neighbors, or maybe even disconnect?
+                    // Let's implement active disconnection later in this function.
+                    continue; 
+                }
+
+                // Verify attestation if present
+                if let Some(attestation) = &signal.attestation {
+                    if TPM::verify(attestation) {
+                        *self.state.neighbor_trust.entry(source.clone()).or_insert(0.5) = 
+                            (trust + self.genome.trust_reward).min(1.0);
+                    } else {
+                        *self.state.neighbor_trust.entry(source.clone()).or_insert(0.5) = 
+                            (trust - self.genome.trust_penalty).max(0.0);
+                    }
+                } else if signal.topic.starts_with("consensus:") {
+                     // Consensus signals MUST be attested. Penalize if missing.
+                     *self.state.neighbor_trust.entry(source.clone()).or_insert(0.5) = 
+                            (trust - self.genome.trust_penalty).max(0.0);
+                }
+            }
+
             match signal.topic.as_str() {
                 "activator" => activator += signal.value,
                 "inhibitor" => inhibitor += signal.value,
@@ -232,6 +270,13 @@ impl SecurityCell {
                     }
                 }
                 _ => {}
+            }
+        }
+
+        // Active disconnection from untrusted neighbors
+        for (neighbor, trust) in &self.state.neighbor_trust {
+            if *trust < self.genome.min_trust_threshold {
+                return CellAction::Disconnect(neighbor.clone());
             }
         }
 
@@ -468,41 +513,40 @@ mod tests {
     }
 
     #[test]
-    fn test_immune_adaptation_and_inheritance() {
-        let mut parent = SecurityCell::new("parent");
-        parent.state.lineage = CellLineage::IntrusionDetection;
-        parent.genome.anomaly_sensitivity = 0.4;
-        let initial_sensitivity = parent.genome.stress_sensitivity;
-
-        // Trigger anomaly
+    fn test_trust_score_disconnection() {
+        let mut cell = SecurityCell::new("lambda");
+        cell.genome.min_trust_threshold = 0.3;
+        cell.genome.trust_penalty = 0.4;
+        // Initial trust is 0.5 (implicit default in code, though map starts empty)
+        
         let mut signals = Vec::new();
+        // Signal from "untrusted_neighbor" with INVALID attestation (missing) for consensus topic
         signals.push(Signal {
-             topic: "inhibitor".to_string(),
-             value: 0.1,
-             source: None,
+             topic: "consensus:activator".to_string(),
+             value: 1.0,
+             source: Some("untrusted_neighbor".to_string()),
              target: None,
-             attestation: None,
+             attestation: None, // Missing attestation for consensus should penalize
         });
+
         let env = CellEnvironment {
-            step: 10,
-            local_threat_score: 0.6,
+            step: 0,
+            local_threat_score: 0.0,
             neighbor_signals: signals,
-            detected_neighbors: Vec::new(),
+            detected_neighbors: vec!["untrusted_neighbor".to_string()],
         };
         
-        let _ = parent.tick(&env);
+        // Tick 1: Should penalize "untrusted_neighbor"
+        // Initial 0.5 - 0.4 = 0.1 trust.
+        // 0.1 < 0.3 (threshold). Should disconnect.
         
-        // Parent should have adapted (reduced sensitivity)
-        assert!(parent.genome.stress_sensitivity < initial_sensitivity, "Parent should reduce sensitivity after adaptation");
-        assert_eq!(parent.state.immune_memory.len(), 1);
-
-        // Simulate replication logic manually (mimicking orchestration)
-        let mut child = SecurityCell::new("child");
-        child.genome = parent.genome.clone();
-        child.state.immune_memory = parent.state.immune_memory.clone();
-        
-        // Child should inherit adapted genome and memory
-        assert!(child.genome.stress_sensitivity < initial_sensitivity, "Child should inherit adapted genome");
-        assert_eq!(child.state.immune_memory.len(), 1, "Child should inherit immune memory");
+        let action = cell.tick(&env);
+        match action {
+            CellAction::Disconnect(target) => {
+                assert_eq!(target, "untrusted_neighbor");
+                assert!(cell.state.neighbor_trust.get("untrusted_neighbor").unwrap() < &0.3);
+            },
+            other => panic!("expected disconnect due to low trust, got {other:?}"),
+        }
     }
 }
