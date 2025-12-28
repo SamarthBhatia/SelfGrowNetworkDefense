@@ -1,0 +1,8 @@
+{"step": 5, "topic": "activator", "value": 0.9, "source": "seed-0"}
+{"step": 10, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-1"}
+{"step": 11, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-1"}
+{"step": 12, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-1"}
+{"step": 15, "topic": "activator", "value": 0.9, "source": "seed-0"}
+{"step": 20, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-2"}
+{"step": 21, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-2"}
+{"step": 22, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-2"}
