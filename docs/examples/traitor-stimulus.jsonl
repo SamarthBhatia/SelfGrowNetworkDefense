@@ -1,8 +1,7 @@
-{"step": 5, "topic": "activator", "value": 0.9, "source": "seed-0"}
-{"step": 10, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-1"}
-{"step": 11, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-1"}
-{"step": 12, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-1"}
-{"step": 15, "topic": "activator", "value": 0.9, "source": "seed-0"}
-{"step": 20, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-2"}
-{"step": 21, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-2"}
-{"step": 22, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-2"}
+{"step": 5, "topic": "activator", "value": 0.9, "source": "seed-0", "duration": 10}
+{"step": 20, "topic": "consensus:activator", "value": 1.0, "source": "seed-0", "target": "seed-1", "duration": 5}
+{"step": 40, "topic": "activator", "value": 1.2, "source": "seed-0", "duration": 15}
+{"step": 60, "topic": "inhibitor", "value": 0.1, "source": "seed-0", "duration": 20}
+{"step": 100, "topic": "activator", "value": 1.5, "source": "seed-0", "duration": 30}
+{"step": 150, "topic": "consensus:activator", "value": 1.2, "source": "seed-0", "target": "seed-2", "duration": 10}
+{"step": 200, "topic": "activator", "value": 2.0, "source": "seed-0", "duration": 50}

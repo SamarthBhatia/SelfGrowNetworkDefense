@@ -2,11 +2,19 @@
 # Testing Swarm Immune Response: Detection and Isolation of a malicious peer.
 
 scenario_name: traitor-cell-validation
+
 initial_cell_count: 5
-simulation_steps: 100
+
+simulation_steps: 300
+
 threat_profile:
-  background_threat: 0.0
+
+  background_threat: 0.1
+
   spike_threshold: 0.8
-cell_reproduction_rate: 0.0 # Disable reproduction for stability
+
+cell_reproduction_rate: 1.0
+
 topology:
+
   strategy: Graph

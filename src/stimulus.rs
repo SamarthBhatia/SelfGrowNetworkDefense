@@ -16,6 +16,12 @@ pub struct StimulusCommand {
     pub target: Option<String>,
     #[serde(default)]
     pub source: Option<String>,
+    #[serde(default = "default_duration")]
+    pub duration: u32,
+}
+
+fn default_duration() -> u32 {
+    1
 }
 
 #[allow(dead_code)]

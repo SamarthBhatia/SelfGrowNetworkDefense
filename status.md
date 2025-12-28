@@ -41,76 +41,6 @@ testbed.
 - Emitted per-step summaries in telemetry and delivered correlation tooling to join runs with stimuli.                                                 
 - Added attack simulation smoke-test script and wired it into CI.                                                                                      
 - Authored attack simulation pipeline documentation.                                                                                                   
-- Implemented adaptive mutation (`AdaptiveMutation` struct and `adapt` function).
-- Integrated adaptive mutation into `AdversarialHarness` and `EvolutionConfig`.
-- Updated `perform_mutation` and `run_generations` to use adaptive mutation parameters.
-- Fixed ID generation in `perform_crossover`, `run_generations`, and `finalize_evaluation` to prevent 'File name too long' errors.
-- Added `test_adaptive_mutation` unit test.
-- Created `run_adaptive_mutation_analysis.sh` script to generate data for adaptive mutation analysis.
-- Updated `lineage_analysis.ipynb` to include adaptive mutation analysis.
-- Fixed various compiler errors and warnings related to argument parsing and unused variables, and addressed `lineage_analysis.ipynb` JSON formatting issues.
-- Implemented a new mutation strategy (`ChangeReproductionRate`) and integrated it into the random mutation pool.
-- Refined crossover parent ID generation for shorter, more manageable identifiers.
-- Updated relevant unit tests to ensure compatibility with new ID generation and the new mutation strategy.
-- Implemented several new mutation strategies (`ChangeReproductionRate`, `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`, `ChangeThreatSpikeTime`) and integrated them into the random mutation pool.
-- Added comprehensive unit tests for `ShiftStimulusTime`, `ChangeInitialCellCount`, `ChangeThreatProfile`, and `ChangeThreatSpikeTime` mutations, ensuring all tests pass.
-- Added a `duration` field to `ThreatSpike` in `src/config.rs` and updated `ScenarioConfig::threat_level_for_step` to account for it.
-- Added `ChangeThreatSpikeDuration` to the `Mutation` enum in `src/adversarial.rs`.
-- Implemented `apply_mutation` for `ChangeThreatSpikeDuration` in `src/config.rs`.
-- Added `ChangeThreatSpikeDuration` to the random mutation pool in `perform_mutation` in `src/adversarial.rs`.
-- Added a unit test for `ChangeThreatSpikeDuration` in `src/config.rs`.
-- Fixed compilation error in `src/config.rs` by adding default `duration` to `ThreatSpike` in `AddSpike` mutation handler.
-- Added a `TwoPoint` variant to the `CrossoverStrategy` enum in `src/adversarial.rs`.
-- Implemented the logic for two-point crossover in `two_point_crossover_stimulus` in `src/adversarial.rs`.
-- Updated `perform_crossover` to use `two_point_crossover_stimulus` when the `TwoPoint` strategy is selected.
-- Added a unit test for `two_point_crossover_stimulus`.
-- Updated `EvolutionConfig::default_smoke_test()` to use the new `TwoPoint` crossover strategy.
-- Fixed a compilation error in the test suite by correctly instantiating `StimulusCommand`.
-- Added a `lineage_fitness_history` field to `AdversarialHarness` to track lineage fitness.
-- Updated `AdversarialHarness::record_outcome` to populate the `lineage_fitness_history`.
-- Added `Targeted` variant to the `MutationStrategy` enum.
-- Implemented `recommend_targeted_mutation` to identify and mutate stagnating lineages.
-- Updated `perform_mutation` to use the new targeted mutation strategy.
-- Added a unit test for `recommend_targeted_mutation`.
-- Updated `EvolutionConfig::default_smoke_test()` to use the new `Targeted` mutation strategy.
-- Fixed compilation errors in the test suite.
-- Added `lineage_fitness_history` to `HarnessState`.
-- Updated `AdversarialHarness::snapshot_state` to save the `lineage_fitness_history`.
-- Updated `AdversarialHarness::from_state` to load the `lineage_fitness_history`.
-- Created `scripts/run_targeted_mutation_analysis.sh` to compare `Random` and `Targeted` mutation strategies.
-- Updated `lineage_analysis.ipynb` to load and visualize the results of the targeted mutation analysis.
-- Implemented `CellGenome` struct in `src/cellular.rs` to enable genetic regulation of cell parameters.
-- Refactored `SecurityCell` to use `CellGenome` and enabled genome mutation during replication.
-- Added `CellAction::Die` and `CellState.dead` to support cell death and natural selection.
-- Updated telemetry and metrics to track cell deaths.
-- Implemented `PopulationStats` to track average genome parameters (mutation drift) over time.
-- Integrated population statistics into telemetry and adversarial run metrics (CSV).
-- Created `scripts/visualize_genome_drift.py` to plot evolutionary trends of genome parameters from simulation artifacts.
-- Implemented "Adaptive Topology Management" foundation:
-    - Added `TopologyConfig` and `TopologyStrategy` (Global vs Graph) to `src/config.rs`.
-    - Refactored `MorphogeneticApp` to support graph-based signaling (adjacency list `neighbors`).
-    - Implemented `step` logic to route signals via graph edges when enabled.
-    - Updated `handle_action` to manage topology on cell replication (child-parent connection) and death (cleanup).
-    - Added `source` field to `Signal` for routing.
-    - Verified with `test_graph_topology_isolation`.
-- Enabled Dynamic Topology Modification:
-    - Added `Connect` and `Disconnect` actions to `CellAction`.
-    - Updated `CellGenome` with `connection_cost` and `isolation_threshold`.
-    - Refactored `CellEnvironment` to expose `detected_neighbors` (list of neighbor IDs).
-    - Implemented `MorphogeneticApp::handle_action` to process `Connect` (bi-directional link) and `Disconnect` (remove link).
-    - Added logic to `SecurityCell::tick` to disconnect from neighbors when stress exceeds `isolation_threshold`.
-    - Verified with `cell_disconnects_under_extreme_stress` unit test.
-- Implemented Topology Visualization and Targeting:
-    - Added `LinkAdded` and `LinkRemoved` telemetry events.
-    - Created `scripts/visualize_topology.py` to generate Graphviz DOT files from telemetry.
-    - Added `target` field to `Signal` and `StimulusCommand` to enable targeted attacks.
-    - Validated isolation behavior with `viral-outbreak` scenario, where Patient Zero successfully quarantined itself.
-- Integrated Topology Metrics into Fitness Scoring:
-    - Added `TopologyStats` to `StepSummary` telemetry (tracking `avg_degree` and `isolation_count`).
-    - Updated `MorphogeneticApp` to calculate and emit these stats per step.
-    - Extended `RunStatistics` and `AdversarialHarness` to consume topology metrics.
-    - Updated `compute_fitness` to reward isolation capability (fraction of isolated cells) as 10% of the score.
-    - Verified via updated unit tests.
 - **Phase 3: Swarm Immune Response Completed**:
     - Created `src/immune.rs` with `ThreatEvent`, `SwarmConsensus`, `TPM`, and `Attestation` models.
     - Updated `CellState` to include `immune_memory` and `neighbor_trust`.
@@ -165,47 +95,30 @@ testbed.
 - **Final Warning Cleanup**:
     - Updated `src/bin/stimulus.rs` to fix `StimulusCommand` initialization error.
     - Verified entire codebase is error and warning free.
-- **Phase 4 Setup & Phase 3 Cleanup**:
-    - Fixed `run_traitor_evolution.sh` log output path.
-    - Added Phase 4 validation scripts and scenarios to git.
-    - Committed pending Phase 3 hardening changes to `src/` (TrustScoreUpdated, source tracking).
+- **Phase 4 Setup & Evolution Infrastructure**:
+    - **ID Hashing:** Implemented hashing for candidate IDs in `AdversarialHarness` to prevent "File name too long" errors during deep evolution.
+    - **Persistent Stimuli:** Added `duration` field to `StimulusCommand` and updated simulation loops (`main.rs`, `adversarial_loop.rs`) to support multi-step signal injection.
+    - **Expanded Metrics:** Updated `PopulationStats` to track drift in `isolation_threshold` and `min_trust_threshold`.
+    - **Mutation Hardening:** Escaped `r#gen` method calls to support newer Rust toolchains.
+    - **Intensive Validation:** Successfully ran 10 generations of Traitor evolution with persistent pressure, verifying that the system correctly isolates traitors.
                                                                                                                                                        
 ### In Progress 
-- Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
+- Analyzing the impact of "Defense-driven Selection Stagnation" where early isolation of threats prevents directional genome drift.
                                                                                                                                                        
 ### Next Up 
-- Analyze the `traitor_drift_plots` results.
-- Design a large-scale "Evo-Devo" experiment to verify multi-generational immune evolution.
+- Implement a "Hop-based Traitor" or "Multiple Traitor" scenario to overcome early isolation.
+- Design a "Persistent Global Pressure" scenario to force multi-generational adaptation.
                                                                                                                                                        
 ## Session Log 
-### 2025-12-27 — Session 57
-- **Focus**: Phase 3 Final Hardening and Security Audit.
-- **Actions**:
-    - Addressed critical audit findings regarding consensus signatures and TPM forgery.
-    - Upgraded `TPM` to use `ed25519-dalek` for asymmetric signing.
-    - Implemented logical isolation (blacklisting) for Global topology.
-    - Secured `TPM` struct against accidental key leakage (Debug redaction and Serde skipping).
-    - Replaced MD5 with SHA-256 for attestation payloads.
-    - Hardened attestation parsing to prevent DoS panics.
-    - Enforced strict signal filtering for blacklisted neighbors in all topologies.
-    - Removed `Clone` from `SecurityCell` and `CellState` to enforce hardware binding.
-    - Implemented `PeerQuarantined` event for logical isolation.
-    - Resolved all compiler warnings.
-    - Enabled custom XOR-obfuscated serialization for `TPM` secrets to fix persistence bug.
-    - Re-registered public keys in `Deserialize` to fix post-restore verification.
-    - Implemented `immediate_mute` by purging signal bus upon disconnect.
-    - Fixed compilation error in `src/bin/stimulus.rs`
-    - All tests passed.
-- **Next Session Starting Point**:
-    - Begin Phase 4 Validation Experiments.
-
 ### 2025-12-28 — Session 58
-- **Focus**: Phase 4 Setup and Phase 3 Clean-up.
+- **Focus**: Phase 4 Setup and Traitor Evolution Validation.
 - **Actions**:
     - Committed Phase 3 hardening changes (TrustScoreUpdated, source tracking).
-    - Fixed `run_traitor_evolution.sh` output path.
-    - Committed Phase 4 validation scripts and scenarios.
-    - Verified tests pass with new trust logic.
+    - Fixed `run_traitor_evolution.sh` output path and increased intensity (10 gens, batch 4).
+    - Implemented ID hashing in `adversarial.rs` to fix "File name too long" crashes.
+    - Added `duration` to `StimulusCommand` and updated simulation engines to support persistent signals.
+    - Updated `PopulationStats` to track more genome parameters.
+    - Verified that the system successfully isolates traitors, which effectively stops directional pressure (leading to low drift).
 - **Next Session Starting Point**:
-    - Analyze the `traitor_drift_plots` results.
-    - Execute the "Evo-Devo" experiments.
+    - Design experiments with multiple traitors or global pressure to verify large-scale evolution.
+    - Analyze `traitor_drift_plots` from the intensive run.

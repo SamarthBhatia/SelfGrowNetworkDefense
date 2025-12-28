@@ -14,14 +14,14 @@ rm -f $STATE_FILE
 
 echo "[info] Starting Traitor Cell Evolution Validation..."
 
-# Run 5 generations
+# Run 10 generations
 cargo run --bin adversarial_loop -- \
     --state $STATE_FILE \
     --artifact-dir $ARTIFACT_DIR \
     --seed traitor_seed=$SCENARIO \
     --stimulus $STIMULUS \
-    --generations 5 \
-    --batch-size 2
+    --generations 10 \
+    --batch-size 4
 
 echo "[info] Evolution complete. Analyzing results..."
 

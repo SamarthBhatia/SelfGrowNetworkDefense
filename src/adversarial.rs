@@ -468,10 +468,17 @@ impl AdversarialHarness {
                         SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
                     }.map_err(|e| HarnessError::Custom(format!("Selection failed: {}", e)))?;
 
-                    let new_candidate_id = format!("{}-gen{}-mut{}",
-                        parent_outcome.candidate.id,
+                    // Use a hash of parent ID to keep the child ID length manageable
+                    use std::collections::hash_map::DefaultHasher;
+                    use std::hash::{Hash, Hasher};
+                    let mut hasher = DefaultHasher::new();
+                    parent_outcome.candidate.id.hash(&mut hasher);
+                    rng.r#gen::<u64>().hash(&mut hasher);
+                    let hash = hasher.finish();
+
+                    let new_candidate_id = format!("gen{}-mut{:08x}",
                         gen_idx + 1,
-                        rng.gen_range(0..1000)
+                        hash
                     );
                     
                     let mutation = perform_mutation(
@@ -536,8 +543,17 @@ impl AdversarialHarness {
         let recommended_mutation = analysis.recommended_mutation.clone();
         let next_candidate = recommended_mutation.map(|mutation| {
             let next_generation = candidate.generation + 1;
+            
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            candidate.id.hash(&mut hasher);
+            next_generation.hash(&mut hasher);
+            "recommend".hash(&mut hasher);
+            let hash = hasher.finish();
+
             AttackCandidate {
-                id: format!("{}-mut{}", candidate.id, next_generation),
+                id: format!("gen{}-rec{:08x}", next_generation, hash),
                 scenario_ref: candidate.scenario_ref.clone(),
                 stimulus_ref: candidate.stimulus_ref.clone(),
                 generation: next_generation,
@@ -735,9 +751,19 @@ pub fn perform_crossover<R: Rng>(
     let child_scenario_ref = parent1.candidate.scenario_ref.clone();
     let child_generation =
         std::cmp::max(parent1.candidate.generation, parent2.candidate.generation) + 1;
+    
+    // Use a hash of parent IDs to keep the child ID length manageable
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    parent1.candidate.id.hash(&mut hasher);
+    parent2.candidate.id.hash(&mut hasher);
+    rng.r#gen::<u64>().hash(&mut hasher);
+    let hash = hasher.finish();
+
     let child_id = format!(
-        "crossover-{}-{}-gen{}",
-        parent1.candidate.id, parent2.candidate.id, child_generation
+        "xover-gen{}-{:08x}",
+        child_generation, hash
     );
 
     let child_stimulus_ref = match (&parent1.candidate.stimulus_ref, &parent2.candidate.stimulus_ref) {

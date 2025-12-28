@@ -55,6 +55,8 @@ fn main() {
         });
 
     let steps = max(1, config.simulation_steps);
+    let mut active_stimuli: Vec<StimulusCommand> = Vec::new();
+
     for step in 0..steps {
         let threat = config.threat_level_for_step(step);
         if threat >= config.threat_profile.spike_threshold {
@@ -68,16 +70,24 @@ fn main() {
         }
 
         if let Some(schedule) = stimulus_schedule.as_mut() {
+            // Fetch new commands for this step
             for command in schedule.take_for_step(step) {
-                app.inject_signal(Signal {
-                    topic: command.topic.clone(),
-                    value: command.value,
-                    source: command.source.clone(),
-                    target: command.target.clone(),
-                    attestation: None,
-                });
+                active_stimuli.push(command);
             }
         }
+
+        // Inject all active stimuli and prune expired ones
+        active_stimuli.retain(|command| {
+            app.inject_signal(Signal {
+                topic: command.topic.clone(),
+                value: command.value,
+                source: command.source.clone(),
+                target: command.target.clone(),
+                attestation: None,
+            });
+            // Keep if not expired. Duration is 1-based (1 means only the start step).
+            step < command.step + command.duration - 1
+        });
 
         app.step(step, threat);
     }

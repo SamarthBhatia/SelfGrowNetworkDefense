@@ -241,6 +241,7 @@ fn simulate_candidate(
     let steps = std::cmp::max(1, scenario_config.simulation_steps);
     let mut per_step: Vec<StepMetrics> = Vec::with_capacity(steps as usize);
     let mut stimulus_ledger: HashMap<u32, HashMap<String, f32>> = HashMap::new();
+    let mut active_stimuli: Vec<morphogenetic_security::stimulus::StimulusCommand> = Vec::new();
 
     for step in 0..steps {
         let threat = scenario_config.threat_level_for_step(step);
@@ -258,21 +259,30 @@ fn simulate_candidate(
         }
 
         if let Some(schedule) = stimulus_schedule.as_mut() {
-            let commands = schedule.take_for_step(step);
-            if !commands.is_empty() {
-                let entry = stimulus_ledger.entry(step).or_default();
-                for command in commands {
-                    app.inject_signal(Signal {
-                        topic: command.topic.clone(),
-                        value: command.value,
-                        source: command.source.clone(),
-                        target: command.target.clone(),
-                        attestation: None,
-                    });
-                    *entry.entry(command.topic).or_insert(0.0) += command.value;
-                }
+            // Fetch new commands for this step
+            for command in schedule.take_for_step(step) {
+                active_stimuli.push(command);
             }
         }
+
+        // Inject all active stimuli and record in ledger
+        let step_stimulus_ledger = stimulus_ledger.entry(step).or_default();
+        for command in &active_stimuli {
+            app.inject_signal(Signal {
+                topic: command.topic.clone(),
+                value: command.value,
+                source: command.source.clone(),
+                target: command.target.clone(),
+                attestation: None,
+            });
+            *step_stimulus_ledger.entry(command.topic.clone()).or_insert(0.0) += command.value;
+        }
+
+        // Prune expired stimuli
+        active_stimuli.retain(|command| {
+            // Keep if not expired. Duration is 1-based (1 means only the start step).
+            step < command.step + command.duration - 1
+        });
 
         let before = app.telemetry().events().len();
         app.step(step, threat);

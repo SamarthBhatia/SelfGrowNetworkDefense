@@ -97,8 +97,8 @@ impl CellGenome {
     #[allow(dead_code)]
     pub fn mutate(&mut self) {
         let mut rng = rand::thread_rng();
-        let rate = 0.05; // 5% chance per gene
-        let strength = 0.1; // +/- 0.1 change
+        let rate = 0.1; // 10% chance per gene
+        let strength = 0.2; // +/- 0.2 change
 
         let mut mutate_field = |field: &mut f32| {
             if rng.gen_bool(rate) {
@@ -148,7 +148,8 @@ pub struct PopulationStats {
     pub avg_stress_sensitivity: f32,
     pub avg_energy_recharge: f32,
     pub avg_threat_inhibitor_factor: f32,
-    // Add other key stats as needed, keeping it concise for now
+    pub avg_isolation_threshold: f32,
+    pub avg_min_trust_threshold: f32,
 }
 
 impl PopulationStats {
@@ -159,6 +160,8 @@ impl PopulationStats {
                 avg_stress_sensitivity: 0.0,
                 avg_energy_recharge: 0.0,
                 avg_threat_inhibitor_factor: 0.0,
+                avg_isolation_threshold: 0.0,
+                avg_min_trust_threshold: 0.0,
             };
         }
 
@@ -167,12 +170,16 @@ impl PopulationStats {
         let mut sum_stress = 0.0;
         let mut sum_energy = 0.0;
         let mut sum_inhib = 0.0;
+        let mut sum_iso = 0.0;
+        let mut sum_trust = 0.0;
 
         for cell in cells {
             sum_repro += cell.genome.reproduction_threshold;
             sum_stress += cell.genome.stress_sensitivity;
             sum_energy += cell.genome.energy_recharge;
             sum_inhib += cell.genome.threat_inhibitor_factor;
+            sum_iso += cell.genome.isolation_threshold;
+            sum_trust += cell.genome.min_trust_threshold;
         }
 
         Self {
@@ -180,6 +187,8 @@ impl PopulationStats {
             avg_stress_sensitivity: sum_stress / count,
             avg_energy_recharge: sum_energy / count,
             avg_threat_inhibitor_factor: sum_inhib / count,
+            avg_isolation_threshold: sum_iso / count,
+            avg_min_trust_threshold: sum_trust / count,
         }
     }
 }
