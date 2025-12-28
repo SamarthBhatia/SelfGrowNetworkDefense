@@ -376,9 +376,9 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                      // In Global mode, logical isolation is handled by the blacklist.
                      self.telemetry.record(
                          SystemTime::now(),
-                         TelemetryEvent::LinkRemoved {
-                             source: cell_id,
-                             target: target_id,
+                         TelemetryEvent::PeerQuarantined {
+                             cell_id: cell_id,
+                             target_id: target_id,
                          },
                      );
                 }

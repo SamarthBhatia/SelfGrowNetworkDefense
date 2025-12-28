@@ -335,7 +335,8 @@ fn simulate_candidate(
                 | TelemetryEvent::LinkAdded { .. }
                 | TelemetryEvent::LinkRemoved { .. }
                 | TelemetryEvent::AnomalyDetected { .. }
-                | TelemetryEvent::VoteCast { .. } => {}
+                | TelemetryEvent::VoteCast { .. }
+                | TelemetryEvent::PeerQuarantined { .. } => {}
             }
         }
 

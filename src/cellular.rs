@@ -25,7 +25,7 @@ pub enum CellLineage {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CellState {
     pub lineage: CellLineage,
     pub energy: f32,

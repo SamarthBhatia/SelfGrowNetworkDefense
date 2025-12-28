@@ -37,6 +37,10 @@ pub enum TelemetryEvent {
         source: String,
         target: String,
     },
+    PeerQuarantined {
+        cell_id: String,
+        target_id: String,
+    },
     AnomalyDetected {
         cell_id: String,
         topic: String,

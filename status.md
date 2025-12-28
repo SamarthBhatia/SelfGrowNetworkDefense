@@ -148,8 +148,11 @@ testbed.
 - **Security & Stability Audit Pass**:
     - **Secret Key Protection:** Added `#[serde(skip)]` to `TPM.secret_bytes` to prevent private key leakage during state serialization.
     - **SHA-256 Transition:** Replaced MD5 with SHA-256 for all attestation payloads to ensure collision resistance.
-    - **Robust Verification:** Removed unsafe `unwrap()` calls in `TPM::verify` and `TPM::attest`, preventing runtime panics on malformed signatures.
+    - **Robust Verification:** Removed unsafe `unwrap()` calls in the signature verification and attestation paths. Malformed or truncated signatures now result in a clean `false` return instead of a runtime panic.
     - **Strict Quarantine:** Enforced per-cell blacklist filtering for both `Global` and `Graph` signal delivery in `MorphogeneticApp::step`.
+- **Accurate Telemetry:**
+    - Replaced `LinkRemoved` with `PeerQuarantined` for logical isolation in global mode, preventing graph visualization confusion.
+    - Ensured consistent event handling in the telemetry loop.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -169,6 +172,8 @@ testbed.
     - Replaced MD5 with SHA-256 for attestation payloads.
     - Hardened attestation parsing to prevent DoS panics.
     - Enforced strict signal filtering for blacklisted neighbors in all topologies.
+    - Removed `Clone` from `SecurityCell` and `CellState` to enforce hardware binding.
+    - Implemented `PeerQuarantined` event for logical isolation.
     - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.

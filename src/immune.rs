@@ -32,10 +32,10 @@ pub struct Attestation {
 pub struct TPM {
     pub cell_id: String,
     pub compromised: bool,
-    // Private signing key (serialized bytes for storage/cloning)
+    // Private signing key (serialized bytes for internal use only)
     // CRITICAL: We skip serialization to prevent private key leakage.
     #[serde(skip)]
-    secret_bytes: Vec<u8>,
+    pub secret_bytes: Vec<u8>,
 }
 
 impl std::fmt::Debug for TPM {
