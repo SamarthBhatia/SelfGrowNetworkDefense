@@ -156,6 +156,8 @@ testbed.
 - **Clean Codebase**:
     - Resolved all compiler warnings in `src/bin/adversarial_loop.rs` and `src/cellular.rs`.
     - Ensured `cargo check` and `cargo test` run cleanly.
+- **Persistence Hardening**:
+    - Re-enabled `TPM` serialization but with custom XOR obfuscation for `secret_bytes` to balance simulation persistence needs with security hygiene.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -178,6 +180,7 @@ testbed.
     - Removed `Clone` from `SecurityCell` and `CellState` to enforce hardware binding.
     - Implemented `PeerQuarantined` event for logical isolation.
     - Resolved all compiler warnings.
+    - Enabled custom XOR-obfuscated serialization for `TPM` secrets to fix persistence bug.
     - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.

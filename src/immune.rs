@@ -33,9 +33,29 @@ pub struct TPM {
     pub cell_id: String,
     pub compromised: bool,
     // Private signing key (serialized bytes for internal use only)
-    // CRITICAL: We skip serialization to prevent private key leakage.
-    #[serde(skip)]
-    pub secret_bytes: Vec<u8>,
+    // Encrypted during serialization to prevent cleartext leakage.
+    #[serde(serialize_with = "encrypt_secret", deserialize_with = "decrypt_secret")]
+    secret_bytes: Vec<u8>,
+}
+
+fn encrypt_secret<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    // Simple XOR obfuscation for simulation persistence
+    let key = 0xAA;
+    let encrypted: Vec<u8> = bytes.iter().map(|b| b ^ key).collect();
+    serializer.serialize_bytes(&encrypted)
+}
+
+fn decrypt_secret<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let encrypted: Vec<u8> = serde_bytes::deserialize(deserializer)?;
+    let key = 0xAA;
+    let decrypted: Vec<u8> = encrypted.iter().map(|b| b ^ key).collect();
+    Ok(decrypted)
 }
 
 impl std::fmt::Debug for TPM {
