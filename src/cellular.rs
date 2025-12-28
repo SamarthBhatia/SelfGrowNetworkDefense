@@ -35,6 +35,8 @@ pub struct CellState {
     pub immune_memory: Vec<ThreatEvent>,
     #[serde(default)]
     pub neighbor_trust: HashMap<String, f32>,
+    #[serde(default)]
+    pub blacklist: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -217,6 +219,7 @@ impl SecurityCell {
                 dead: false,
                 immune_memory: Vec::new(),
                 neighbor_trust: HashMap::new(),
+                blacklist: Vec::new(),
             },
             genome: CellGenome::default(),
             tpm: TPM::new(id),

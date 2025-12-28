@@ -131,23 +131,37 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 }
 
                 // 2. Incorporate neighbor signals
-                if let Some(neighbors) = self.neighbors.get(&cell.id) {
-                    for neighbor_id in neighbors {
-                        if let Some(neighbor_signals) = signals_by_source.get(neighbor_id) {
-                            for signal in neighbor_signals {
-                                if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
-                                    cell_signals.push((*signal).clone());
+                if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
+                    // Global Mode: Iterate all signals, filtering blacklisted sources
+                    for signal in signals.iter().filter(|s| s.source.is_some()) {
+                        let source_id = signal.source.as_ref().unwrap();
+                        if !cell.state.blacklist.contains(source_id) {
+                             if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
+                                cell_signals.push(signal.clone());
+                            }
+                        }
+                    }
+                } else {
+                    // Graph Mode: Only look at adjacency list neighbors
+                    if let Some(neighbors) = self.neighbors.get(&cell.id) {
+                        for neighbor_id in neighbors {
+                            if let Some(neighbor_signals) = signals_by_source.get(neighbor_id) {
+                                for signal in neighbor_signals {
+                                    if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
+                                        cell_signals.push((*signal).clone());
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                
                 cell_signals
             };
 
             let detected_neighbors = if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
                 global_neighbors.iter()
-                    .filter(|id| *id != &cell.id)
+                    .filter(|id| *id != &cell.id && !cell.state.blacklist.contains(id))
                     .cloned()
                     .collect()
             } else {
@@ -315,8 +329,15 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 }
             }
             CellAction::Disconnect(target_id) => {
+                let cell_id = self.cells[index].id.clone();
+                // Add to local blacklist regardless of topology strategy
+                if let Some(cell) = self.cells.get_mut(index) {
+                    if !cell.state.blacklist.contains(&target_id) {
+                        cell.state.blacklist.push(target_id.clone());
+                    }
+                }
+
                 if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
-                     let cell_id = self.cells[index].id.clone();
                      // Remove forward link
                      if let Some(neighbors) = self.neighbors.get_mut(&cell_id) {
                          if let Some(pos) = neighbors.iter().position(|x| x == &target_id) {
@@ -330,6 +351,15 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                          }
                      }
                      
+                     self.telemetry.record(
+                         SystemTime::now(),
+                         TelemetryEvent::LinkRemoved {
+                             source: cell_id,
+                             target: target_id,
+                         },
+                     );
+                } else if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
+                     // In Global mode, logical isolation is handled by the blacklist.
                      self.telemetry.record(
                          SystemTime::now(),
                          TelemetryEvent::LinkRemoved {

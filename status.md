@@ -120,7 +120,7 @@ testbed.
     - Created `scripts/visualize_trust_graph.py` to monitor swarm coordination.
     - Authored `docs/swarm-immune-response.md` and updated existing documentation.
 - **Resolved Swarm Immune Response Critical Issues**:
-    - **Global Trust Persistence:** Enabled neighbor detection in `Global` topology to prevent trust score wipeout.
+    - **Global Trust Persistence:** Enabled neighbor detection in `Global` topology to prevent trust score wipeout via blacklist filtering.
     - **Attestation Integrity:** Bound signatures to message payload (topic, value, target) and step number.
     - **Replay Protection:** Relaxed `TPM::verify` to allow 1-step delivery delay while enforcing freshness.
     - **Targeted Consensus:** Enabled cells to identify and vote specifically against misbehaving peers.
@@ -134,6 +134,10 @@ testbed.
     - Removed redundant `TPM` struct definition.
     - Fixed duplicate imports in `src/immune.rs`.
     - Corrected keyword usage in `TPM::new`.
+- **Global Topology Isolation:**
+    - Implemented blacklisting logic in `CellAction::Disconnect` to allow logical isolation even in broadcast mode.
+    - Updated `MorphogeneticApp::step` to filter incoming signals from blacklisted neighbors in Global mode.
+    - Restored `Graph` mode logic in `step` to strictly follow adjacency lists.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -151,6 +155,7 @@ testbed.
     - Fixed consensus payload formatting to match broadcast signals.
     - Cleaned up vestigial code.
     - Fixed duplicate imports and definitions in `src/immune.rs`.
+    - Implemented logical isolation (blacklisting) for Global topology.
     - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.
