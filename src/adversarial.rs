@@ -1507,7 +1507,7 @@ mod tests {
         assert_eq!(outcome.candidate.id, "seed-ci");
         assert_eq!(outcome.statistics.step_count, 2);
         if let Some(mutant) = maybe_mutation {
-            assert!(mutant.id.starts_with("seed-ci-mut"));
+            assert!(mutant.id.starts_with("gen1-rec"), "Expected ID to start with gen1-rec, got {}", mutant.id);
             assert_eq!(
                 mutant.stimulus_ref.as_deref(),
                 Some("docs/examples/ci-stimulus.jsonl")
@@ -1948,7 +1948,7 @@ mod tests {
         assert_eq!(child.scenario_ref, "scenario1.yaml");
         assert!(child.stimulus_ref.is_some());
         assert_eq!(child.generation, 3);
-        assert!(child.id.starts_with("crossover-parent1-parent2-gen3"));
+        assert!(child.id.starts_with("xover-gen3-"), "Expected ID to start with xover-gen3-, got {}", child.id);
         assert!(child.mutation.is_some());
     }
 

@@ -201,6 +201,7 @@ mod tests {
             value: 0.8,
             target: None,
             source: None,
+            duration: 1,
         };
         let cmd_b = StimulusCommand {
             step: 2,
@@ -208,6 +209,7 @@ mod tests {
             value: 0.4,
             target: None,
             source: None,
+            duration: 1,
         };
         schedule
             .commands
@@ -233,6 +235,7 @@ mod tests {
             value: 0.9,
             target: None,
             source: None,
+            duration: 1,
         };
 
         append_command(&path, &command).expect("append should succeed");
@@ -256,6 +259,7 @@ mod tests {
             value: 1.0,
             target: None,
             source: None,
+            duration: 1,
         };
         let cmd_b = StimulusCommand {
             step: 10,
@@ -263,6 +267,7 @@ mod tests {
             value: 2.0,
             target: None,
             source: None,
+            duration: 1,
         };
         schedule.commands.entry(5).or_default().push(cmd_a.clone());
         schedule.commands.entry(10).or_default().push(cmd_b.clone());

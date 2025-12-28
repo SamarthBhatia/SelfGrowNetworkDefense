@@ -473,6 +473,8 @@ mod tests {
     #[test]
     fn cell_emits_signal_on_moderate_threat() {
         let mut cell = SecurityCell::new("delta");
+        // Explicitly set threshold to ensure test passes regardless of default hardening
+        cell.genome.signal_emission_threshold = 0.4;
         let mut signals = Vec::new();
         signals.push(Signal {
              topic: "activator".to_string(),
