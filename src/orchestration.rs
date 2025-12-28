@@ -120,7 +120,17 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
 
         for (index, cell) in self.cells.iter_mut().enumerate() {
             let neighbor_signals: Vec<Signal> = if let Some(ref globals) = global_signals {
-                globals.clone()
+                // In Global mode, we must still filter out signals from blacklisted sources per cell
+                globals.iter()
+                    .filter(|s| {
+                        if let Some(source) = &s.source {
+                            !cell.state.blacklist.contains(source)
+                        } else {
+                            true // Allow system signals
+                        }
+                    })
+                    .cloned()
+                    .collect()
             } else {
                 let mut cell_signals = Vec::new();
                 // 1. Incorporate system signals (source == None)

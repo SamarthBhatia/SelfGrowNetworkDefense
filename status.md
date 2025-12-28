@@ -136,8 +136,11 @@ testbed.
     - Corrected keyword usage in `TPM::new`.
 - **Global Topology Isolation:**
     - Implemented blacklisting logic in `CellAction::Disconnect` to allow logical isolation even in broadcast mode.
-    - Updated `MorphogeneticApp::step` to filter incoming signals from blacklisted neighbors in Global mode.
+    - Updated `MorphogeneticApp::step` to filter incoming signals from blacklisted sources in Global mode.
     - Restored `Graph` mode logic in `step` to strictly follow adjacency lists.
+- **Swarm Trust Hardening:**
+    - Upgraded `TPM` simulation to use true asymmetric cryptography (`ed25519-dalek`) with a registry of public keys, ensuring `SecurityCell` logic cannot access secrets.
+    - Implemented robust signature generation and verification binding `step`, `payload_hash`, and `cell_id`.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -151,10 +154,7 @@ testbed.
 - **Focus**: Phase 3 Final Hardening.
 - **Actions**:
     - Addressed critical audit findings regarding consensus signatures and TPM forgery.
-    - Upgraded `TPM` to use a `secret` salt for signatures.
-    - Fixed consensus payload formatting to match broadcast signals.
-    - Cleaned up vestigial code.
-    - Fixed duplicate imports and definitions in `src/immune.rs`.
+    - Upgraded `TPM` to use `ed25519-dalek` for asymmetric signing.
     - Implemented logical isolation (blacklisting) for Global topology.
     - All tests passed.
 - **Next Session Starting Point**:
