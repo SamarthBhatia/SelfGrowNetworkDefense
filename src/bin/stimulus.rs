@@ -36,7 +36,13 @@ fn run() -> Result<(), String> {
         .parse()
         .map_err(|_| format!("Invalid <step> `{step_str}`; expected unsigned integer"))?;
 
-    let command = StimulusCommand { step, topic, value };
+    let command = StimulusCommand {
+        step,
+        topic,
+        value,
+        target: None,
+        source: None,
+    };
 
     append_command(PathBuf::from(file_path), &command)
         .map_err(|err| format!("Failed to append stimulus command: {err}"))?;
