@@ -184,7 +184,7 @@ fn simulate_candidate(
     let telemetry_path = run_dir.join("telemetry.jsonl");
     let metrics_path = run_dir.join("step_metrics.csv");
 
-    let mut scenario_config = config::load_from_path(&PathBuf::from(&candidate.scenario_ref)).map_err(|err| {
+    let scenario_config = config::load_from_path(&PathBuf::from(&candidate.scenario_ref)).map_err(|err| {
         HarnessError::Custom(format!(
             "Failed to load scenario `{}`: {err}",
             candidate.scenario_ref
@@ -215,23 +215,10 @@ fn simulate_candidate(
     }
 
 
-    if let Some(mutation) = &candidate.mutation {
-        // Only apply mutation if not already applied (i.e. if scenario was loaded from original path)
-        // But wait, simulate_candidate loads from candidate.scenario_ref which IS the mutated path 
-        // IF applied by apply_mutation_and_generate_files.
-        // However, we still need to apply mutation to stimulus_schedule if it wasn't persisted?
-        // Actually apply_mutation_and_generate_files persists BOTH.
-        // So we should NOT apply mutation here again if files were already generated.
-        // But simulate_candidate might be called with original file paths if not coming from run_generations loop?
-        // Let's assume if it's a generated file (has "gen" in path?), we don't mutate?
-        // Better: apply_mutation_and_generate_files returns new paths.
-        // If candidate.scenario_ref points to a file that already has mutation applied, applying it again is bad.
-        // The `run_generations` closure updates `candidate.scenario_ref` to the *mutated* path.
-        // So `simulate_candidate` loads the *mutated* file.
-        // Then it applies the mutation *again* in memory. This is the double application.
-        // Fix: Remove this block entirely for scenario_config.
-        // For stimulus_schedule, it's also loaded from mutated file if stimulus_ref was updated.
-        // So remove this block entirely.
+    if let Some(_mutation) = &candidate.mutation {
+        // Mutation is applied during file generation (apply_mutation_and_generate_files).
+        // The scenario_config and stimulus_schedule loaded here already reflect the mutation.
+        // We explicitly ignore it here to satisfy the linter and prevent double application.
     }
 
     let telemetry = TelemetryPipeline::with_file(&telemetry_path).map_err(HarnessError::Io)?;

@@ -138,7 +138,7 @@ testbed.
     - Implemented blacklisting logic in `CellAction::Disconnect` to allow logical isolation even in broadcast mode.
     - Updated `MorphogeneticApp::step` to filter incoming signals from blacklisted sources in Global mode.
     - Restored `Graph` mode logic in `step` to strictly follow adjacency lists.
-- **Swarm Trust Hardening:**
+- **Swarm Trust Hardening**:
     - Upgraded `TPM` simulation to use true asymmetric cryptography (`ed25519-dalek`) with a registry of public keys, ensuring `SecurityCell` logic cannot access secrets.
     - Implemented robust signature generation and verification binding `step`, `payload_hash`, and `cell_id`.
 - **Final Hardening**:
@@ -153,6 +153,9 @@ testbed.
 - **Accurate Telemetry:**
     - Replaced `LinkRemoved` with `PeerQuarantined` for logical isolation in global mode, preventing graph visualization confusion.
     - Ensured consistent event handling in the telemetry loop.
+- **Clean Codebase**:
+    - Resolved all compiler warnings in `src/bin/adversarial_loop.rs` and `src/cellular.rs`.
+    - Ensured `cargo check` and `cargo test` run cleanly.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -174,6 +177,7 @@ testbed.
     - Enforced strict signal filtering for blacklisted neighbors in all topologies.
     - Removed `Clone` from `SecurityCell` and `CellState` to enforce hardware binding.
     - Implemented `PeerQuarantined` event for logical isolation.
+    - Resolved all compiler warnings.
     - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.
