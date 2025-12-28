@@ -19,7 +19,7 @@ estation.
 4. **Controlled Evolution Validation (≈0.5 months)**: Evolve attack suites, collect metrics, and showcase adaptive defense growth on the physical IoT t
 testbed.                                                                                                                                                
                                                                                                                                                        
-## Current State (2025-12-27 UTC)                                                                                                                      
+## Current State (2025-12-28 UTC)                                                                                                                      
 ### Completed                                                                                                                                          
 - Archived the original prototype into `legacy_project_backup/` to preserve prior work while starting a clean rebuild.                                 
 - Captured contributor guidance in `legacy_project_backup/AGENTS.md` for reference.                                                                    
@@ -165,12 +165,16 @@ testbed.
 - **Final Warning Cleanup**:
     - Updated `src/bin/stimulus.rs` to fix `StimulusCommand` initialization error.
     - Verified entire codebase is error and warning free.
+- **Phase 4 Setup & Phase 3 Cleanup**:
+    - Fixed `run_traitor_evolution.sh` log output path.
+    - Added Phase 4 validation scripts and scenarios to git.
+    - Committed pending Phase 3 hardening changes to `src/` (TrustScoreUpdated, source tracking).
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
                                                                                                                                                        
 ### Next Up 
-- Start Phase 4: Controlled Evolution Validation.
+- Analyze the `traitor_drift_plots` results.
 - Design a large-scale "Evo-Devo" experiment to verify multi-generational immune evolution.
                                                                                                                                                        
 ## Session Log 
@@ -194,3 +198,14 @@ testbed.
     - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.
+
+### 2025-12-28 — Session 58
+- **Focus**: Phase 4 Setup and Phase 3 Clean-up.
+- **Actions**:
+    - Committed Phase 3 hardening changes (TrustScoreUpdated, source tracking).
+    - Fixed `run_traitor_evolution.sh` output path.
+    - Committed Phase 4 validation scripts and scenarios.
+    - Verified tests pass with new trust logic.
+- **Next Session Starting Point**:
+    - Analyze the `traitor_drift_plots` results.
+    - Execute the "Evo-Devo" experiments.
