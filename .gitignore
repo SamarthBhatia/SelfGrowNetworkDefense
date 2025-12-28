@@ -5,6 +5,14 @@ AGENTS.md
 
 # Rust tooling
 **/*.rs.bk
+# Simulation and Analysis artifacts
+*.jsonl
+*.csv
+/viral_viz/
+/scripts/__pycache__/
+*.png
+!docs/images/*.png
+
 # IDEs and system files
 .DS_Store
 .idea/
