@@ -145,6 +145,11 @@ testbed.
     - Removed `Clone` and `Debug` from `TPM` to prevent accidental key exfiltration.
     - Implemented manual redaction for `TPM` logging.
     - Refined `MorphogeneticApp` to filter pending signals from blacklisted neighbors in both `Global` and `Graph` modes, ensuring immediate quarantine effect.
+- **Security & Stability Audit Pass**:
+    - **Secret Key Protection:** Added `#[serde(skip)]` to `TPM.secret_bytes` to prevent private key leakage during state serialization.
+    - **SHA-256 Transition:** Replaced MD5 with SHA-256 for all attestation payloads to ensure collision resistance.
+    - **Robust Verification:** Removed unsafe `unwrap()` calls in `TPM::verify` and `TPM::attest`, preventing runtime panics on malformed signatures.
+    - **Strict Quarantine:** Enforced per-cell blacklist filtering for both `Global` and `Graph` signal delivery in `MorphogeneticApp::step`.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -155,12 +160,14 @@ testbed.
                                                                                                                                                        
 ## Session Log 
 ### 2025-12-27 — Session 57
-- **Focus**: Phase 3 Final Hardening.
+- **Focus**: Phase 3 Final Hardening and Security Audit.
 - **Actions**:
     - Addressed critical audit findings regarding consensus signatures and TPM forgery.
     - Upgraded `TPM` to use `ed25519-dalek` for asymmetric signing.
     - Implemented logical isolation (blacklisting) for Global topology.
-    - Secured `TPM` struct against accidental key leakage.
+    - Secured `TPM` struct against accidental key leakage (Debug redaction and Serde skipping).
+    - Replaced MD5 with SHA-256 for attestation payloads.
+    - Hardened attestation parsing to prevent DoS panics.
     - Enforced strict signal filtering for blacklisted neighbors in all topologies.
     - All tests passed.
 - **Next Session Starting Point**:
