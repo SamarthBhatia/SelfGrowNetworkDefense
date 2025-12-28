@@ -34,10 +34,10 @@ if ! grep -q "backlog_len": 1" "$HARNESS_STATE"; then
     exit 1
 fi
 
-# Check for generated outcomes (at least 2, one for initial, one for the mutation)
-num_outcomes=$(find "$ARTIFACT_DIR" -name "*_outcome.json" | wc -l | tr -d ' ')
+# Check for generated metrics (at least 2 runs: initial seed + subsequent generations)
+num_outcomes=$(find "$ARTIFACT_DIR" -name "step_metrics.csv" | wc -l | tr -d ' ')
 if [ "$num_outcomes" -lt 2 ]; then
-    echo "Error: Expected at least 2 outcome JSONs, found $num_outcomes."
+    echo "Error: Expected at least 2 step_metrics.csv files, found $num_outcomes."
     exit 1
 fi
 

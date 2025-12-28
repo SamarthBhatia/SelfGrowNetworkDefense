@@ -58,6 +58,21 @@ testbed.
 - Prepare a release candidate.
                                                                                                                                                        
 ## Session Log 
+### 2025-12-28 — Session 59
+- **Focus**: Repository-wide verification and documentation review.
+- **Actions**:
+    - Read `README.md`, key docs under `docs/`, and the latest `status.md` roadmap to understand claimed capabilities/results.
+    - Inspected core modules (`cellular`, `orchestration`, `immune`, `adversarial`, bin targets, and scripts) for correctness and alignment with the roadmap.
+    - Spot-checked bundled datasets and helper scripts plus executed `cargo test` to ensure current code passes.
+    - Captured discrepancies and risks for brutal-finding report.
+- **Findings**:
+    - README “Scientific Validation” chapter over-claims: commands contain typos (`car go`) and “hardened genomes baked into defaults” is untrue (defaults still pre-evolution).
+    - CLI help for `adversarial_cycle`/`adversarial_loop` advertises flags that don’t exist, making the harness instructions misleading.
+    - Consensus-attestation handling (`SecurityCell::tick`) can be abused by unauthenticated consensus spam to short-circuit a cell’s behavior for a step; quarantine/muting logic also only drops targeted backlog signals.
+    - Phase 4 evidence is anecdotal: scripts only run three generations, there’s no statistical check for the claimed 8–20% drift, and the repo lacks a reproducible dataset tying telemetry to those numbers.
+- **Next Session Starting Point**:
+    - Decide whether to fix documentation/CLI mismatches first or tackle the consensus-trust bug and genome/default drift gap so code, docs, and evidence converge.
+
 ### 2025-12-28 — Session 58
 - **Focus**: Phase 4 Evolution Validation.
 - **Actions**:
