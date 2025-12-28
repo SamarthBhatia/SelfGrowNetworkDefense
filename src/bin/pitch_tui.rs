@@ -222,15 +222,14 @@ fn build_table(outcomes: &[OutcomeDisplay]) -> Table<'static> {
         }
     }
 
-    let table = Table::new(rows, widths)
+    Table::new(rows, widths)
         .header(Row::new(header_cells).style(Style::default().add_modifier(Modifier::BOLD)))
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Scenario Comparison"),
         )
-        .column_spacing(2);
-    table
+        .column_spacing(2)
 }
 
 fn add_row<F>(

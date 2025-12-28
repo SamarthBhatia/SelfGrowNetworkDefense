@@ -107,8 +107,8 @@ impl InMemorySink {
             .unwrap_or(SystemTime::UNIX_EPOCH);
         self.events
             .iter()
-            .cloned()
             .filter(|snapshot| snapshot.timestamp >= cutoff)
+            .cloned()
             .collect()
     }
 }

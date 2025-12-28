@@ -213,12 +213,18 @@ impl ScenarioConfig {
             Mutation::ChangeThreatProfile { profile } => {
                 self.threat_profile = profile.clone();
             }
-            Mutation::ChangeThreatSpikeTime { spike_index, new_step } => {
+            Mutation::ChangeThreatSpikeTime {
+                spike_index,
+                new_step,
+            } => {
                 if let Some(spike) = self.spikes.get_mut(*spike_index) {
                     spike.step = *new_step;
                 }
             }
-            Mutation::ChangeThreatSpikeDuration { spike_index, new_duration } => {
+            Mutation::ChangeThreatSpikeDuration {
+                spike_index,
+                new_duration,
+            } => {
                 if let Some(spike) = self.spikes.get_mut(*spike_index) {
                     spike.duration = *new_duration;
                 }
@@ -306,7 +312,9 @@ spikes:
             background_threat: 0.5,
             spike_threshold: 0.9,
         };
-        let mutation = crate::adversarial::Mutation::ChangeThreatProfile { profile: new_profile.clone() };
+        let mutation = crate::adversarial::Mutation::ChangeThreatProfile {
+            profile: new_profile.clone(),
+        };
         scenario_config.apply_mutation(&mutation);
         assert!((scenario_config.threat_profile.background_threat - 0.5).abs() < f32::EPSILON);
         assert!((scenario_config.threat_profile.spike_threshold - 0.9).abs() < f32::EPSILON);

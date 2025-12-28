@@ -45,10 +45,9 @@ fn run() -> Result<(), String> {
                     state_path.display()
                 )
             })?;
-            if args.batch_size.is_some()
-                || args.max_generations.is_some()
-                // || args.elite_size.is_some()
-                // || args.exploration_generations.is_some()
+            if args.batch_size.is_some() || args.max_generations.is_some()
+            // || args.elite_size.is_some()
+            // || args.exploration_generations.is_some()
             {
                 println!("[info] Loaded existing harness; configuration overrides ignored.");
             }
@@ -149,9 +148,7 @@ fn print_summary(
     if let Some(next_candidate) = maybe_mutation {
         println!(
             "Queued follow-up candidate `{}` (generation {}) with mutation: {:?}",
-            next_candidate.id,
-            next_candidate.generation,
-            next_candidate.mutation
+            next_candidate.id, next_candidate.generation, next_candidate.mutation
         );
     }
     println!("Harness backlog size after evaluation: {backlog_len}");
@@ -202,11 +199,11 @@ fn write_json(
     });
 
     let parent = path.parent().map(PathBuf::from);
-    if let Some(parent_dir) = parent {
-        if !parent_dir.as_path().exists() {
-            fs::create_dir_all(&parent_dir)
-                .map_err(|err| format!("Failed to create output directory: {err}"))?;
-        }
+    if let Some(parent_dir) = parent
+        && !parent_dir.as_path().exists()
+    {
+        fs::create_dir_all(&parent_dir)
+            .map_err(|err| format!("Failed to create output directory: {err}"))?;
     }
 
     fs::write(

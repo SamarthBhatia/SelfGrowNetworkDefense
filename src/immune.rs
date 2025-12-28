@@ -1,11 +1,11 @@
 //! Swarm immune response and distributed anomaly detection logic.
 
-use serde::{Deserialize, Serialize};
-use std::sync::{Mutex, OnceLock};
-use std::collections::HashMap;
-use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey, Signature};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
-use sha2::{Sha256, Digest};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 /// A recorded threat event in a cell's local memory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,13 +44,16 @@ impl Serialize for TPM {
         let mut state = serializer.serialize_struct("TPM", 3)?;
         state.serialize_field("cell_id", &self.cell_id)?;
         state.serialize_field("compromised", &self.compromised)?;
-        
+
         // Obfuscate secret using cell_id as salt (simulation security)
         let salt = md5::compute(&self.cell_id).0;
-        let encrypted: Vec<u8> = self.secret_bytes.iter().enumerate()
+        let encrypted: Vec<u8> = self
+            .secret_bytes
+            .iter()
+            .enumerate()
             .map(|(i, b)| b ^ salt[i % 16])
             .collect();
-            
+
         state.serialize_field("secret_bytes", &encrypted)?;
         state.end()
     }
@@ -67,24 +70,31 @@ impl<'de> Deserialize<'de> for TPM {
             compromised: bool,
             secret_bytes: Vec<u8>,
         }
-        
+
         let def = TPMDef::deserialize(deserializer)?;
-        
+
         // De-obfuscate
         let salt = md5::compute(&def.cell_id).0;
-        let secret_bytes: Vec<u8> = def.secret_bytes.iter().enumerate()
+        let secret_bytes: Vec<u8> = def
+            .secret_bytes
+            .iter()
+            .enumerate()
             .map(|(i, b)| b ^ salt[i % 16])
             .collect();
-            
+
         // Re-register public key in PKI
-        if !def.compromised && !secret_bytes.is_empty() {
-            if let Ok(bytes) = secret_bytes.as_slice().try_into() {
-                let signing_key = SigningKey::from_bytes(bytes);
-                let verifying_key = signing_key.verifying_key();
-                get_pki().lock().unwrap().insert(def.cell_id.clone(), verifying_key.to_bytes().to_vec());
-            }
+        if !def.compromised
+            && !secret_bytes.is_empty()
+            && let Ok(bytes) = secret_bytes.as_slice().try_into()
+        {
+            let signing_key = SigningKey::from_bytes(bytes);
+            let verifying_key = signing_key.verifying_key();
+            get_pki()
+                .lock()
+                .unwrap()
+                .insert(def.cell_id.clone(), verifying_key.to_bytes().to_vec());
         }
-        
+
         Ok(TPM {
             cell_id: def.cell_id,
             compromised: def.compromised,
@@ -118,10 +128,13 @@ impl TPM {
         csprng.fill_bytes(&mut bytes);
         let signing_key = SigningKey::from_bytes(&bytes);
         let verifying_key: VerifyingKey = signing_key.verifying_key();
-        
+
         // Publish public key to PKI
-        get_pki().lock().unwrap().insert(cell_id.clone(), verifying_key.to_bytes().to_vec());
-        
+        get_pki()
+            .lock()
+            .unwrap()
+            .insert(cell_id.clone(), verifying_key.to_bytes().to_vec());
+
         Self {
             cell_id,
             compromised: false,
@@ -137,7 +150,7 @@ impl TPM {
             hasher.update(payload.as_bytes());
             let payload_hash = format!("{:x}", hasher.finalize());
             let message = format!("{}:{}", step, payload_hash);
-            
+
             // Reconstruct signing key from stored bytes safely
             let signing_key_bytes: [u8; 32] = match self.secret_bytes.as_slice().try_into() {
                 Ok(bytes) => bytes,
@@ -162,16 +175,16 @@ impl TPM {
         }
         // Freshness check (allow 1 step delay)
         if attestation.step > current_step || (current_step - attestation.step) > 1 {
-            return false; 
+            return false;
         }
         // Integrity check
         let mut hasher = Sha256::new();
         hasher.update(payload.as_bytes());
         let expected_hash = format!("{:x}", hasher.finalize());
         if attestation.payload_hash != expected_hash {
-            return false; 
+            return false;
         }
-        
+
         // Retrieve PUBLIC key from registry
         let pki = get_pki().lock().unwrap();
         if let Some(pub_bytes) = pki.get(&attestation.cell_id) {
@@ -179,14 +192,14 @@ impl TPM {
                 Ok(bytes) => bytes,
                 Err(_) => return false,
             };
-            
+
             if let Ok(verifying_key) = VerifyingKey::from_bytes(&verifying_key_bytes) {
                 let message = format!("{}:{}", attestation.step, expected_hash);
                 let signature_bytes: [u8; 64] = match attestation.signature.as_slice().try_into() {
                     Ok(bytes) => bytes,
                     Err(_) => return false,
                 };
-                
+
                 let signature = Signature::from_bytes(&signature_bytes);
                 return verifying_key.verify(message.as_bytes(), &signature).is_ok();
             }

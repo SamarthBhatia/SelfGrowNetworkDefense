@@ -5,9 +5,9 @@ use morphogenetic_security::adversarial::{
 };
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
-use morphogenetic_security::stimulus::StimulusSchedule;
-use morphogenetic_security::telemetry::{TelemetryPipeline, TelemetryEvent};
 use morphogenetic_security::signaling::Signal; // Import Signal
+use morphogenetic_security::stimulus::StimulusSchedule;
+use morphogenetic_security::telemetry::{TelemetryEvent, TelemetryPipeline};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -65,7 +65,8 @@ fn run() -> Result<(), String> {
 
             let mut mutated_candidate = candidate.clone();
             mutated_candidate.scenario_ref = mutated_scenario_path.to_string_lossy().to_string();
-            mutated_candidate.stimulus_ref = mutated_stimulus_path.map(|p| p.to_string_lossy().to_string());
+            mutated_candidate.stimulus_ref =
+                mutated_stimulus_path.map(|p| p.to_string_lossy().to_string());
 
             simulate_candidate(&mutated_candidate, &artifact_root, stimulus_path.as_deref())
         })
@@ -136,34 +137,33 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
                     args.state_path.display()
                 )
             })
-            .map(|harness| {
-                                if args.batch_size.is_some()
-                                    || args.max_generations.is_some()
-                                    || args.crossover_rate.is_some()
-                                {
-                                    println!("[info] Existing harness loaded; configuration overrides ignored.");
-                                }
-                                harness
-                            })
-                    } else {
-                        let mut config = EvolutionConfig::default_smoke_test();
-                        if let Some(batch) = args.batch_size {
-                            config.batch_size = batch;
-                        }
-                        if let Some(max_gen) = args.max_generations {
-                            config.max_generations = max_gen;
-                        }
-                        if let Some(rate) = args.crossover_rate {
-                            config.crossover_rate = rate;
-                        }
-                
-                        println!(
-                            "[info] Initialising new harness with batch_size={} max_generations={} crossover_rate={}",
-                            config.batch_size, config.max_generations, config.crossover_rate
-                        );
-                        Ok(AdversarialHarness::new(config))
-                    }
+            .inspect(|_| {
+                if args.batch_size.is_some()
+                    || args.max_generations.is_some()
+                    || args.crossover_rate.is_some()
+                {
+                    println!("[info] Existing harness loaded; configuration overrides ignored.");
                 }
+            })
+    } else {
+        let mut config = EvolutionConfig::default_smoke_test();
+        if let Some(batch) = args.batch_size {
+            config.batch_size = batch;
+        }
+        if let Some(max_gen) = args.max_generations {
+            config.max_generations = max_gen;
+        }
+        if let Some(rate) = args.crossover_rate {
+            config.crossover_rate = rate;
+        }
+
+        println!(
+            "[info] Initialising new harness with batch_size={} max_generations={} crossover_rate={}",
+            config.batch_size, config.max_generations, config.crossover_rate
+        );
+        Ok(AdversarialHarness::new(config))
+    }
+}
 
 fn persist_harness(harness: &AdversarialHarness, path: &Path) -> Result<(), String> {
     harness
@@ -184,12 +184,13 @@ fn simulate_candidate(
     let telemetry_path = run_dir.join("telemetry.jsonl");
     let metrics_path = run_dir.join("step_metrics.csv");
 
-    let scenario_config = config::load_from_path(&PathBuf::from(&candidate.scenario_ref)).map_err(|err| {
-        HarnessError::Custom(format!(
-            "Failed to load scenario `{}`: {err}",
-            candidate.scenario_ref
-        ))
-    })?;
+    let scenario_config =
+        config::load_from_path(PathBuf::from(&candidate.scenario_ref)).map_err(|err| {
+            HarnessError::Custom(format!(
+                "Failed to load scenario `{}`: {err}",
+                candidate.scenario_ref
+            ))
+        })?;
 
     let mut stimulus_schedule: Option<StimulusSchedule> = None;
     let mut persisted_stimulus: Option<PathBuf> = None;
@@ -205,7 +206,8 @@ fn simulate_candidate(
         let destination = run_dir.join("stimulus.jsonl");
         fs::copy(&stimulus_source_path, &destination)?;
         persisted_stimulus = Some(destination);
-        stimulus_schedule = Some(StimulusSchedule::load(&stimulus_source_path).map_err(HarnessError::Io)?);
+        stimulus_schedule =
+            Some(StimulusSchedule::load(&stimulus_source_path).map_err(HarnessError::Io)?);
     } else if let Some(default_path) = _default_stimulus {
         // Fallback to default stimulus if provided
         let destination = run_dir.join("stimulus.jsonl");
@@ -213,7 +215,6 @@ fn simulate_candidate(
         persisted_stimulus = Some(destination);
         stimulus_schedule = Some(StimulusSchedule::load(default_path).map_err(HarnessError::Io)?);
     }
-
 
     if let Some(_mutation) = &candidate.mutation {
         // Mutation is applied during file generation (apply_mutation_and_generate_files).
@@ -232,7 +233,7 @@ fn simulate_candidate(
         // High rate -> low cost or low threshold?
         // Let's scale reproduction_energy_cost inversely to rate.
         if scenario_config.cell_reproduction_rate > 0.0 {
-             cell.genome.reproduction_energy_cost /= scenario_config.cell_reproduction_rate;
+            cell.genome.reproduction_energy_cost /= scenario_config.cell_reproduction_rate;
         }
         cells.push(cell);
     }
@@ -275,7 +276,9 @@ fn simulate_candidate(
                 target: command.target.clone(),
                 attestation: None,
             });
-            *step_stimulus_ledger.entry(command.topic.clone()).or_insert(0.0) += command.value;
+            *step_stimulus_ledger
+                .entry(command.topic.clone())
+                .or_insert(0.0) += command.value;
         }
 
         // Prune expired stimuli
@@ -295,8 +298,11 @@ fn simulate_candidate(
         let mut lineage_by_lineage: HashMap<String, u32> = HashMap::new();
         let mut summary_threat: Option<f32> = None;
         let mut summary_cells: Option<u32> = None;
-        let mut summary_population_stats: Option<morphogenetic_security::cellular::PopulationStats> = None;
-        let mut summary_topology_stats: Option<morphogenetic_security::telemetry::TopologyStats> = None;
+        let mut summary_population_stats: Option<
+            morphogenetic_security::cellular::PopulationStats,
+        > = None;
+        let mut summary_topology_stats: Option<morphogenetic_security::telemetry::TopologyStats> =
+            None;
 
         for snapshot in new_events {
             match &snapshot.event {
@@ -306,14 +312,10 @@ fn simulate_candidate(
                 TelemetryEvent::CellDied { .. } => {
                     deaths += 1;
                 }
-                TelemetryEvent::SignalEmitted {
-                    topic, ..
-                } => {
+                TelemetryEvent::SignalEmitted { topic, .. } => {
                     *signals_by_topic.entry(topic.clone()).or_insert(0) += 1;
                 }
-                TelemetryEvent::LineageShift {
-                    lineage, ..
-                } => {
+                TelemetryEvent::LineageShift { lineage, .. } => {
                     *lineage_by_lineage.entry(lineage.clone()).or_insert(0) += 1;
                 }
                 TelemetryEvent::StepSummary {

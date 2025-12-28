@@ -18,7 +18,11 @@ pub struct MorphogeneticApp<TSink: TelemetrySink> {
 
 impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
     #[allow(dead_code)]
-    pub fn new(cells: Vec<SecurityCell>, telemetry: TSink, topology_config: TopologyConfig) -> Self {
+    pub fn new(
+        cells: Vec<SecurityCell>,
+        telemetry: TSink,
+        topology_config: TopologyConfig,
+    ) -> Self {
         let mut app = Self {
             cells,
             signal_bus: SignalBus::default(),
@@ -45,15 +49,21 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 if self.cells.is_empty() {
                     return;
                 }
-                
+
                 for i in 0..self.cells.len() {
                     let current_id = self.cells[i].id.clone();
                     // Connect to previous
                     if i > 0 {
-                        let prev_id = self.cells[i-1].id.clone();
-                        self.neighbors.entry(current_id.clone()).or_default().push(prev_id.clone());
-                        self.neighbors.entry(prev_id.clone()).or_default().push(current_id.clone());
-                        
+                        let prev_id = self.cells[i - 1].id.clone();
+                        self.neighbors
+                            .entry(current_id.clone())
+                            .or_default()
+                            .push(prev_id.clone());
+                        self.neighbors
+                            .entry(prev_id.clone())
+                            .or_default()
+                            .push(current_id.clone());
+
                         self.telemetry.record(
                             SystemTime::now(),
                             TelemetryEvent::LinkAdded {
@@ -69,12 +79,15 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
 
     fn calculate_topology_stats(&self) -> crate::telemetry::TopologyStats {
         if self.cells.is_empty() {
-             return crate::telemetry::TopologyStats { avg_degree: 0.0, isolation_count: 0 };
+            return crate::telemetry::TopologyStats {
+                avg_degree: 0.0,
+                isolation_count: 0,
+            };
         }
-        
+
         let mut total_degree = 0;
         let mut isolation_count = 0;
-        
+
         for cell in &self.cells {
             let degree = self.neighbors.get(&cell.id).map(|n| n.len()).unwrap_or(0);
             total_degree += degree;
@@ -82,7 +95,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 isolation_count += 1;
             }
         }
-        
+
         crate::telemetry::TopologyStats {
             avg_degree: total_degree as f32 / self.cells.len() as f32,
             isolation_count,
@@ -92,36 +105,42 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
     #[allow(dead_code)]
     pub fn step(&mut self, step_index: u32, threat_score: f32) {
         let signals = self.signal_bus.drain();
-        
-        let global_signals: Option<Vec<Signal>> = if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
-            // In Global, everyone sees everything.
-            Some(signals.clone())
-        } else {
-            None
-        };
+
+        let global_signals: Option<Vec<Signal>> =
+            if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
+                // In Global, everyone sees everything.
+                Some(signals.clone())
+            } else {
+                None
+            };
 
         // For Graph mode, index signals by source
         let mut signals_by_source: HashMap<String, Vec<&Signal>> = HashMap::new();
         if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
             for signal in &signals {
                 if let Some(ref source) = signal.source {
-                    signals_by_source.entry(source.clone()).or_default().push(signal);
+                    signals_by_source
+                        .entry(source.clone())
+                        .or_default()
+                        .push(signal);
                 }
             }
         }
 
         let mut actions = Vec::with_capacity(self.cells.len());
 
-        let global_neighbors: Vec<String> = if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
-            self.cells.iter().map(|c| c.id.clone()).collect()
-        } else {
-            Vec::new()
-        };
+        let global_neighbors: Vec<String> =
+            if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
+                self.cells.iter().map(|c| c.id.clone()).collect()
+            } else {
+                Vec::new()
+            };
 
         for (index, cell) in self.cells.iter_mut().enumerate() {
             let neighbor_signals: Vec<Signal> = if let Some(ref globals) = global_signals {
                 // In Global mode, we must still filter out signals from blacklisted sources per cell
-                globals.iter()
+                globals
+                    .iter()
                     .filter(|s| {
                         if let Some(source) = &s.source {
                             !cell.state.blacklist.contains(source)
@@ -135,7 +154,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 let mut cell_signals = Vec::new();
                 // 1. Incorporate system signals (source == None)
                 for signal in signals.iter().filter(|s| s.source.is_none()) {
-                    if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
+                    if signal.target.as_ref().is_none_or(|t| t == &cell.id) {
                         cell_signals.push(signal.clone());
                     }
                 }
@@ -145,11 +164,9 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     // Global Mode: Iterate all signals, filtering blacklisted sources
                     for signal in signals.iter().filter(|s| s.source.is_some()) {
                         let source_id = signal.source.as_ref().unwrap();
-                        if !cell.state.blacklist.contains(source_id) {
-                             if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
+                        if !cell.state.blacklist.contains(source_id) && signal.target.as_ref().is_none_or(|t| t == &cell.id) {
                                 cell_signals.push(signal.clone());
                             }
-                        }
                     }
                 } else {
                     // Graph Mode: Only look at adjacency list neighbors
@@ -161,7 +178,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                             }
                             if let Some(neighbor_signals) = signals_by_source.get(neighbor_id) {
                                 for signal in neighbor_signals {
-                                    if signal.target.as_ref().map_or(true, |t| t == &cell.id) {
+                                    if signal.target.as_ref().is_none_or(|t| t == &cell.id) {
                                         cell_signals.push((*signal).clone());
                                     }
                                 }
@@ -169,18 +186,20 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                         }
                     }
                 }
-                
+
                 cell_signals
             };
 
-            let detected_neighbors = if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
-                global_neighbors.iter()
-                    .filter(|id| *id != &cell.id && !cell.state.blacklist.contains(id))
-                    .cloned()
-                    .collect()
-            } else {
-                self.neighbors.get(&cell.id).cloned().unwrap_or_default()
-            };
+            let detected_neighbors =
+                if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
+                    global_neighbors
+                        .iter()
+                        .filter(|id| *id != &cell.id && !cell.state.blacklist.contains(id))
+                        .cloned()
+                        .collect()
+                } else {
+                    self.neighbors.get(&cell.id).cloned().unwrap_or_default()
+                };
 
             let environment = CellEnvironment {
                 step: step_index,
@@ -197,7 +216,9 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         }
 
         // Remove dead cells
-        let dead_ids: Vec<String> = self.cells.iter()
+        let dead_ids: Vec<String> = self
+            .cells
+            .iter()
             .filter(|c| c.state.dead)
             .map(|c| c.id.clone())
             .collect();
@@ -226,7 +247,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                             // Or should we log both directions? Let's stick to one event per "logical link" break if possible,
                             // but logging both is safer for reconstruction.
                             // Actually, let's just rely on the first loop to catch the explicit connections.
-                            // But wait, if A is neighbor of B, B is neighbor of A. 
+                            // But wait, if A is neighbor of B, B is neighbor of A.
                             // Removing A from B's list is the other half.
                             // Let's log it for completeness so the graph reconstruction is robust.
                             self.telemetry.record(
@@ -248,7 +269,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         } else {
             None
         };
-        
+
         let topology_stats = Some(self.calculate_topology_stats());
 
         self.telemetry.record(
@@ -274,8 +295,8 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 // Inherit genome and immune memory from parent
                 child.genome = self.cells[index].genome.clone();
                 child.state.immune_memory = self.cells[index].state.immune_memory.clone();
-                // Child starts with fresh trust map to avoid inheriting bias/stale data? 
-                // Or should it inherit "reputation data"? 
+                // Child starts with fresh trust map to avoid inheriting bias/stale data?
+                // Or should it inherit "reputation data"?
                 // Let's inherit it for now, assuming "gossip" is passed down.
                 child.state.neighbor_trust = self.cells[index].state.neighbor_trust.clone();
                 child.genome.mutate();
@@ -283,9 +304,15 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                 let parent_id = self.cells[index].id.clone();
 
                 if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
-                    self.neighbors.entry(parent_id.clone()).or_default().push(child_id.clone());
-                    self.neighbors.entry(child_id.clone()).or_default().push(parent_id.clone());
-                    
+                    self.neighbors
+                        .entry(parent_id.clone())
+                        .or_default()
+                        .push(child_id.clone());
+                    self.neighbors
+                        .entry(child_id.clone())
+                        .or_default()
+                        .push(parent_id.clone());
+
                     self.telemetry.record(
                         SystemTime::now(),
                         TelemetryEvent::LinkAdded {
@@ -348,96 +375,96 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
             CellAction::Disconnect(target_id) => {
                 let cell_id = self.cells[index].id.clone();
                 // Add to local blacklist regardless of topology strategy
-                if let Some(cell) = self.cells.get_mut(index) {
-                    if !cell.state.blacklist.contains(&target_id) {
+                if let Some(cell) = self.cells.get_mut(index) && !cell.state.blacklist.contains(&target_id) {
                         cell.state.blacklist.push(target_id.clone());
                     }
-                }
 
                 if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
-                     // Remove forward link
-                     if let Some(neighbors) = self.neighbors.get_mut(&cell_id) {
-                         if let Some(pos) = neighbors.iter().position(|x| x == &target_id) {
-                             neighbors.remove(pos);
-                         }
-                     }
-                     // Remove backward link (undirected graph assumption for now, or just symmetric)
-                     if let Some(neighbors) = self.neighbors.get_mut(&target_id) {
-                         if let Some(pos) = neighbors.iter().position(|x| x == &cell_id) {
-                             neighbors.remove(pos);
-                         }
-                     }
-                     
-                     self.telemetry.record(
-                         SystemTime::now(),
-                         TelemetryEvent::LinkRemoved {
-                             source: cell_id.clone(),
-                             target: target_id.clone(),
-                         },
-                     );
-                     
-                     // Immediate Mute: Purge pending signals from the disconnected target
-                     // destined for this cell to prevent "final burst" attacks.
-                     // Access inner queue via drain/retain (SignalBus logic)
-                     // Wait, SignalBus doesn't expose queue directly?
-                     // I need to add a purge method to SignalBus.
-                     // Or access if public? `queue` is private in `signaling.rs`.
-                     // Let's add `purge_from` to SignalBus.
-                     self.signal_bus.purge_from(&target_id, &cell_id);
+                    // Remove forward link
+                    if let Some(neighbors) = self.neighbors.get_mut(&cell_id) && let Some(pos) = neighbors.iter().position(|x| x == &target_id) {
+                            neighbors.remove(pos);
+                        }
+                    // Remove backward link (undirected graph assumption for now, or just symmetric)
+                    if let Some(neighbors) = self.neighbors.get_mut(&target_id) && let Some(pos) = neighbors.iter().position(|x| x == &cell_id) {
+                            neighbors.remove(pos);
+                        }
+
+                    self.telemetry.record(
+                        SystemTime::now(),
+                        TelemetryEvent::LinkRemoved {
+                            source: cell_id.clone(),
+                            target: target_id.clone(),
+                        },
+                    );
+
+                    // Immediate Mute: Purge pending signals from the disconnected target
+                    // destined for this cell to prevent "final burst" attacks.
+                    // Access inner queue via drain/retain (SignalBus logic)
+                    // Wait, SignalBus doesn't expose queue directly?
+                    // I need to add a purge method to SignalBus.
+                    // Or access if public? `queue` is private in `signaling.rs`.
+                    // Let's add `purge_from` to SignalBus.
+                    self.signal_bus.purge_from(&target_id, &cell_id);
                 } else if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
-                     // In Global mode, logical isolation is handled by the blacklist.
-                     self.telemetry.record(
-                         SystemTime::now(),
-                         TelemetryEvent::PeerQuarantined {
-                             cell_id: cell_id,
-                             target_id: target_id,
-                         },
-                     );
+                    // In Global mode, logical isolation is handled by the blacklist.
+                    self.telemetry.record(
+                        SystemTime::now(),
+                        TelemetryEvent::PeerQuarantined {
+                            cell_id,
+                            target_id,
+                        },
+                    );
                 }
             }
             CellAction::Connect(target_id) => {
-                 if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
-                     let cell_id = self.cells[index].id.clone();
-                     // Add forward link
-                     self.neighbors.entry(cell_id.clone()).or_default().push(target_id.clone());
-                     // Add backward link
-                     self.neighbors.entry(target_id.clone()).or_default().push(cell_id.clone());
-                     
-                     self.telemetry.record(
-                         SystemTime::now(),
-                         TelemetryEvent::LinkAdded {
-                             source: cell_id,
-                             target: target_id,
-                         },
-                                          );
-                                     }
-                                 }
-                                             CellAction::ReportAnomaly(topic, confidence, target, attestation) => {
-                                                 let cell_id = self.cells[index].id.clone();
-                                                 self.telemetry.record(
-                                                     SystemTime::now(),
-                                                     TelemetryEvent::AnomalyDetected {
-                                                         cell_id: cell_id.clone(),
-                                                         topic: topic.clone(),
-                                                         confidence,
-                                                     },
-                                                 );
-                                                                 // Also publish a 'consensus' signal to neighbors
-                                                                 self.signal_bus.publish(Signal {
-                                                                     topic: format!("consensus:{}", topic),
-                                                                     value: confidence,
-                                                                     source: Some(cell_id.clone()),
-                                                                     target,
-                                                                     attestation,
-                                                                 });
-                                                                 self.telemetry.record(
-                                                                     SystemTime::now(),
-                                                                     TelemetryEvent::VoteCast {
-                                                                         cell_id,
-                                                                         target_topic: topic,
-                                                                     },
-                                                                 );
-                                                             }
+                if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
+                    let cell_id = self.cells[index].id.clone();
+                    // Add forward link
+                    self.neighbors
+                        .entry(cell_id.clone())
+                        .or_default()
+                        .push(target_id.clone());
+                    // Add backward link
+                    self.neighbors
+                        .entry(target_id.clone())
+                        .or_default()
+                        .push(cell_id.clone());
+
+                    self.telemetry.record(
+                        SystemTime::now(),
+                        TelemetryEvent::LinkAdded {
+                            source: cell_id,
+                            target: target_id,
+                        },
+                    );
+                }
+            }
+            CellAction::ReportAnomaly(topic, confidence, target, attestation) => {
+                let cell_id = self.cells[index].id.clone();
+                self.telemetry.record(
+                    SystemTime::now(),
+                    TelemetryEvent::AnomalyDetected {
+                        cell_id: cell_id.clone(),
+                        topic: topic.clone(),
+                        confidence,
+                    },
+                );
+                // Also publish a 'consensus' signal to neighbors
+                self.signal_bus.publish(Signal {
+                    topic: format!("consensus:{}", topic),
+                    value: confidence,
+                    source: Some(cell_id.clone()),
+                    target,
+                    attestation,
+                });
+                self.telemetry.record(
+                    SystemTime::now(),
+                    TelemetryEvent::VoteCast {
+                        cell_id,
+                        target_topic: topic,
+                    },
+                );
+            }
             CellAction::NotifyTrustUpdate(target_id, new_score) => {
                 let cell_id = self.cells[index].id.clone();
                 self.telemetry.record(
@@ -451,8 +478,8 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
             }
         }
     }
-                                                 
-                         #[allow(dead_code)]
+
+    #[allow(dead_code)]
     pub fn telemetry(&self) -> &TSink {
         &self.telemetry
     }
@@ -520,7 +547,11 @@ mod tests {
         let events = app.telemetry().events();
 
         // Find SignalEmitted events
-        let emissions: Vec<&TelemetryEvent> = events.iter().filter(|e| matches!(e.event, TelemetryEvent::SignalEmitted { .. })).map(|e| &e.event).collect();
+        let emissions: Vec<&TelemetryEvent> = events
+            .iter()
+            .filter(|e| matches!(e.event, TelemetryEvent::SignalEmitted { .. }))
+            .map(|e| &e.event)
+            .collect();
 
         // Check B emitted
         let b_emitted = emissions.iter().any(|e| match e {
@@ -534,8 +565,14 @@ mod tests {
             _ => false,
         });
 
-        assert!(b_emitted, "Cell B should have received signal from A and emitted response");
-        assert!(!c_emitted, "Cell C should NOT have received signal from A directly");
+        assert!(
+            b_emitted,
+            "Cell B should have received signal from A and emitted response"
+        );
+        assert!(
+            !c_emitted,
+            "Cell C should NOT have received signal from A directly"
+        );
     }
 
     #[test]
@@ -574,7 +611,11 @@ mod tests {
         app.step(0, 0.0);
 
         let events = app.telemetry().events();
-        let emissions: Vec<&TelemetryEvent> = events.iter().filter(|e| matches!(e.event, TelemetryEvent::SignalEmitted { .. })).map(|e| &e.event).collect();
+        let emissions: Vec<&TelemetryEvent> = events
+            .iter()
+            .filter(|e| matches!(e.event, TelemetryEvent::SignalEmitted { .. }))
+            .map(|e| &e.event)
+            .collect();
 
         let b_emitted = emissions.iter().any(|e| match e {
             TelemetryEvent::SignalEmitted { cell_id, .. } => cell_id == "B",

@@ -1,8 +1,10 @@
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
 use morphogenetic_security::signaling::Signal;
-use morphogenetic_security::stimulus::{StimulusSchedule, StimulusCommand};
-use morphogenetic_security::telemetry::{InMemorySink, TelemetryPipeline, TelemetryEvent, TelemetrySink};
+use morphogenetic_security::stimulus::{StimulusCommand, StimulusSchedule};
+use morphogenetic_security::telemetry::{
+    InMemorySink, TelemetryEvent, TelemetryPipeline, TelemetrySink,
+};
 use morphogenetic_security::{MorphogeneticApp, ScenarioConfig};
 use std::cmp::max;
 use std::env;
@@ -27,7 +29,7 @@ fn main() {
     let mut telemetry_pipeline = runtime
         .telemetry_path
         .as_ref()
-        .map(|path| TelemetryPipeline::with_file(path))
+        .map(TelemetryPipeline::with_file)
         .transpose()
         .unwrap_or_else(|err| {
             eprintln!("Failed to initialize telemetry sink: {err}");
@@ -47,7 +49,7 @@ fn main() {
     let mut stimulus_schedule = runtime
         .stimulus_path
         .as_ref()
-        .map(|path| StimulusSchedule::load(path))
+        .map(StimulusSchedule::load)
         .transpose()
         .unwrap_or_else(|err| {
             eprintln!("Failed to load stimulus schedule: {err}");

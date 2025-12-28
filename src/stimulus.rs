@@ -57,8 +57,12 @@ impl StimulusSchedule {
 
     #[allow(dead_code)]
     pub fn save_to_path<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
-        let mut file = OpenOptions::new().create(true).write(true).truncate(true).open(path)?;
-        for (_, commands_at_step) in &self.commands {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)?;
+        for commands_at_step in self.commands.values() {
             for command in commands_at_step {
                 serde_json::to_writer(&mut file, command)?;
                 file.write_all(b"\n")?;
@@ -99,16 +103,20 @@ impl StimulusSchedule {
                     }
                 }
             }
-            Mutation::ChangeEventTiming { event_index, new_step } => {
+            Mutation::ChangeEventTiming {
+                event_index,
+                new_step,
+            } => {
                 let mut all_commands: Vec<StimulusCommand> = Vec::new();
-                for (_, commands_at_step) in self.commands.clone().into_iter() { // Use into_iter to consume and move
+                for (_, commands_at_step) in self.commands.clone().into_iter() {
+                    // Use into_iter to consume and move
                     all_commands.extend(commands_at_step);
                 }
 
                 if let Some(cmd) = all_commands.get_mut(*event_index) {
                     cmd.step = *new_step;
                 }
-                
+
                 // Rebuild the BTreeMap
                 let mut new_commands: BTreeMap<u32, Vec<StimulusCommand>> = BTreeMap::new();
                 for cmd in all_commands {
@@ -116,7 +124,10 @@ impl StimulusSchedule {
                 }
                 self.commands = new_commands;
             }
-            Mutation::SwapStimulus { event_index1, event_index2 } => {
+            Mutation::SwapStimulus {
+                event_index1,
+                event_index2,
+            } => {
                 let mut all_commands: Vec<StimulusCommand> = Vec::new();
                 for (_, commands_at_step) in self.commands.clone().into_iter() {
                     all_commands.extend(commands_at_step);
@@ -150,7 +161,10 @@ impl StimulusSchedule {
                 }
                 self.commands = new_commands;
             }
-            Mutation::ShiftStimulusTime { event_index, time_delta } => {
+            Mutation::ShiftStimulusTime {
+                event_index,
+                time_delta,
+            } => {
                 let mut all_commands: Vec<StimulusCommand> = Vec::new();
                 for (_, commands_at_step) in self.commands.clone().into_iter() {
                     all_commands.extend(commands_at_step);
@@ -160,7 +174,7 @@ impl StimulusSchedule {
                     // Ensure step doesn't go below 0
                     cmd.step = (cmd.step as i32 + time_delta).max(0) as u32;
                 }
-                
+
                 // Rebuild the BTreeMap
                 let mut new_commands: BTreeMap<u32, Vec<StimulusCommand>> = BTreeMap::new();
                 for cmd in all_commands {
@@ -273,17 +287,26 @@ mod tests {
         schedule.commands.entry(10).or_default().push(cmd_b.clone());
 
         // Shift command A by 3 steps forward
-        schedule.apply_mutation(&crate::adversarial::Mutation::ShiftStimulusTime { event_index: 0, time_delta: 3 });
+        schedule.apply_mutation(&crate::adversarial::Mutation::ShiftStimulusTime {
+            event_index: 0,
+            time_delta: 3,
+        });
         let updated_commands_a = schedule.commands.get(&8).unwrap();
         assert_eq!(updated_commands_a[0].step, 8);
 
         // Shift command B by 5 steps backward
-        schedule.apply_mutation(&crate::adversarial::Mutation::ShiftStimulusTime { event_index: 1, time_delta: -5 });
+        schedule.apply_mutation(&crate::adversarial::Mutation::ShiftStimulusTime {
+            event_index: 1,
+            time_delta: -5,
+        });
         let updated_commands_b = schedule.commands.get(&5).unwrap();
         assert_eq!(updated_commands_b[0].step, 5);
 
         // Shift command A to a step below 0 (should become 0)
-        schedule.apply_mutation(&crate::adversarial::Mutation::ShiftStimulusTime { event_index: 0, time_delta: -10 });
+        schedule.apply_mutation(&crate::adversarial::Mutation::ShiftStimulusTime {
+            event_index: 0,
+            time_delta: -10,
+        });
         let updated_commands_a_zero = schedule.commands.get(&0).unwrap();
         assert_eq!(updated_commands_a_zero[0].step, 0);
     }

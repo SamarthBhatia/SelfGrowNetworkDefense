@@ -1,9 +1,9 @@
 //! Cellular automaton primitives for morphogenetic security nodes.
+use crate::immune::{Attestation, TPM, ThreatEvent};
+use crate::signaling::Signal;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::immune::{Attestation, ThreatEvent, TPM};
-use crate::signaling::Signal;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,7 +71,7 @@ impl Default for CellGenome {
             threat_inhibitor_factor: 0.35,
             stress_decay: 0.45,
             stress_sensitivity: 0.7,
-            energy_recharge: 0.15, // Increased from 0.08
+            energy_recharge: 0.15,     // Increased from 0.08
             energy_threat_drain: 0.15, // Reduced from 0.25
             energy_inhibitor_drain: 0.1,
             reproduction_threshold: 0.75,
@@ -244,37 +244,52 @@ impl SecurityCell {
         let mut accused_votes: HashMap<String, f32> = HashMap::new();
 
         // 0. Trust Pruning: remove trust entries for neighbors no longer detected
-        self.state.neighbor_trust.retain(|id, _| environment.detected_neighbors.contains(id));
+        self.state
+            .neighbor_trust
+            .retain(|id, _| environment.detected_neighbors.contains(id));
 
         for signal in &environment.neighbor_signals {
             if let Some(source) = &signal.source {
                 let trust = *self.state.neighbor_trust.get(source).unwrap_or(&0.5);
-                
+
                 // Penalize if source is untrusted (below min_trust_threshold)
                 if trust < self.genome.min_trust_threshold {
-                    continue; 
+                    continue;
                 }
 
                 // Verify attestation if present and bind it to the source
                 if let Some(attestation) = &signal.attestation {
-                    let payload = format!("{}:{:.1}:{}", signal.topic, signal.value, signal.target.as_deref().unwrap_or("none"));
-                    
-                    if attestation.cell_id == *source && TPM::verify(attestation, environment.step as u64, &payload) {
-                        *self.state.neighbor_trust.entry(source.clone()).or_insert(0.5) = 
-                            (trust + self.genome.trust_reward).min(1.0);
+                    let payload = format!(
+                        "{}:{:.1}:{}",
+                        signal.topic,
+                        signal.value,
+                        signal.target.as_deref().unwrap_or("none")
+                    );
+
+                    if attestation.cell_id == *source
+                        && TPM::verify(attestation, environment.step as u64, &payload)
+                    {
+                        *self
+                            .state
+                            .neighbor_trust
+                            .entry(source.clone())
+                            .or_insert(0.5) = (trust + self.genome.trust_reward).min(1.0);
                     } else {
-                        *self.state.neighbor_trust.entry(source.clone()).or_insert(0.5) = 
-                            (trust - self.genome.trust_penalty).max(0.0);
+                        *self
+                            .state
+                            .neighbor_trust
+                            .entry(source.clone())
+                            .or_insert(0.5) = (trust - self.genome.trust_penalty).max(0.0);
                     }
                 } else if signal.topic.starts_with("consensus:") {
-                     // Consensus signals MUST be attested. Penalize if missing.
-                     let new_trust = (trust - self.genome.trust_penalty).max(0.0);
-                     self.state.neighbor_trust.insert(source.clone(), new_trust);
-                     // If we are about to return Idle, return trust update notification instead
-                     // (This is a hack to get telemetry without Vec<Action>)
-                     if new_trust >= self.genome.min_trust_threshold {
+                    // Consensus signals MUST be attested. Penalize if missing.
+                    let new_trust = (trust - self.genome.trust_penalty).max(0.0);
+                    self.state.neighbor_trust.insert(source.clone(), new_trust);
+                    // If we are about to return Idle, return trust update notification instead
+                    // (This is a hack to get telemetry without Vec<Action>)
+                    if new_trust >= self.genome.min_trust_threshold {
                         return CellAction::NotifyTrustUpdate(source.clone(), new_trust);
-                     }
+                    }
                 }
             }
 
@@ -284,10 +299,18 @@ impl SecurityCell {
                 "cooperative" => cooperative += signal.value,
                 topic if topic.starts_with("consensus:") => {
                     // Only count vote if attestation is valid and bound to source
-                    if let (Some(source), Some(attestation)) = (&signal.source, &signal.attestation) {
-                        let payload = format!("{}:{:.1}:{}", signal.topic, signal.value, signal.target.as_deref().unwrap_or("none"));
-                        if attestation.cell_id == *source && TPM::verify(attestation, environment.step as u64, &payload) {
-                            // If signal has a target, that's the accused. 
+                    if let (Some(source), Some(attestation)) = (&signal.source, &signal.attestation)
+                    {
+                        let payload = format!(
+                            "{}:{:.1}:{}",
+                            signal.topic,
+                            signal.value,
+                            signal.target.as_deref().unwrap_or("none")
+                        );
+                        if attestation.cell_id == *source
+                            && TPM::verify(attestation, environment.step as u64, &payload)
+                        {
+                            // If signal has a target, that's the accused.
                             // Otherwise, the source is reporting itself or its vicinity as anomalous.
                             let accused = signal.target.clone().unwrap_or_else(|| source.clone());
                             *accused_votes.entry(accused).or_insert(0.0) += signal.value;
@@ -330,24 +353,28 @@ impl SecurityCell {
         }
 
         // 3. Individual Isolation
-        if self.state.stress_level > self.genome.isolation_threshold && !environment.detected_neighbors.is_empty() {
-             if let Some(target) = environment.detected_neighbors.first() {
-                 return CellAction::Disconnect(target.clone());
-             }
+        if self.state.stress_level > self.genome.isolation_threshold
+            && !environment.detected_neighbors.is_empty()
+            && let Some(target) = environment.detected_neighbors.first()
+        {
+            return CellAction::Disconnect(target.clone());
         }
 
         // Anomaly Detection (IntrusionDetection lineage only)
-        if matches!(self.state.lineage, CellLineage::IntrusionDetection) 
-           && effective_threat > self.genome.anomaly_sensitivity 
-           && inhibitor < 0.2 // Not being suppressed
+        if matches!(self.state.lineage, CellLineage::IntrusionDetection)
+            && effective_threat > self.genome.anomaly_sensitivity
+            && inhibitor < 0.2
+        // Not being suppressed
         {
             // Record in memory if not already there recently (cooldown of 50 steps)
-            let recent_match = self.state.immune_memory.iter()
-                .any(|e| e.topic == "activator" && environment.step.saturating_sub(e.step) < 50);
-            
+            let recent_match =
+                self.state.immune_memory.iter().any(|e| {
+                    e.topic == "activator" && environment.step.saturating_sub(e.step) < 50
+                });
+
             if !recent_match {
                 let event = ThreatEvent {
-                    step: environment.step, 
+                    step: environment.step,
                     topic: "activator".to_string(),
                     magnitude: effective_threat,
                     confidence: 0.8,
@@ -355,11 +382,17 @@ impl SecurityCell {
                 self.genome.adapt_to_event(&event);
                 self.state.immune_memory.push(event);
             }
-            
+
             // Find the neighbor contributing most to activator signals (the "accused")
-            let accused_target = environment.neighbor_signals.iter()
+            let accused_target = environment
+                .neighbor_signals
+                .iter()
                 .filter(|s| s.topic == "activator" && s.source.is_some())
-                .max_by(|a, b| a.value.partial_cmp(&b.value).unwrap_or(std::cmp::Ordering::Equal))
+                .max_by(|a, b| {
+                    a.value
+                        .partial_cmp(&b.value)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .and_then(|s| s.source.clone());
 
             let topic = "activator".to_string();
@@ -368,7 +401,7 @@ impl SecurityCell {
             let target_str = accused_target.as_deref().unwrap_or("none");
             let payload = format!("{}:{:.1}:{}", consensus_topic, effective_threat, target_str);
             let attestation = self.tpm.attest(environment.step as u64, &payload);
-            
+
             return CellAction::ReportAnomaly(topic, effective_threat, accused_target, attestation);
         }
 
@@ -447,14 +480,13 @@ mod tests {
     fn cell_transitions_to_healer_with_inhibitor_support() {
         let mut cell = SecurityCell::new("gamma");
         cell.state.stress_level = 0.2;
-        let mut signals = Vec::new();
-        signals.push(Signal {
-             topic: "inhibitor".to_string(),
-             value: 0.65,
-             source: None,
-             target: None,
-             attestation: None,
-        });
+        let signals = vec![Signal {
+            topic: "inhibitor".to_string(),
+            value: 0.65,
+            source: None,
+            target: None,
+            attestation: None,
+        }];
         let environment = CellEnvironment {
             step: 0,
             local_threat_score: 0.05,
@@ -475,14 +507,13 @@ mod tests {
         let mut cell = SecurityCell::new("delta");
         // Explicitly set threshold to ensure test passes regardless of default hardening
         cell.genome.signal_emission_threshold = 0.4;
-        let mut signals = Vec::new();
-        signals.push(Signal {
-             topic: "activator".to_string(),
-             value: 0.1,
-             source: None,
-             target: None,
-             attestation: None,
-        });
+        let signals = vec![Signal {
+            topic: "activator".to_string(),
+            value: 0.1,
+            source: None,
+            target: None,
+            attestation: None,
+        }];
         let environment = CellEnvironment {
             step: 0,
             local_threat_score: 0.45,
@@ -511,15 +542,17 @@ mod tests {
         let mut cell = SecurityCell::new("zeta");
         cell.state.stress_level = 0.95;
         cell.genome.isolation_threshold = 0.9;
-        
+
         let mut environment = env_with_threat(0.8);
-        environment.detected_neighbors.push("bad_neighbor".to_string());
-        
+        environment
+            .detected_neighbors
+            .push("bad_neighbor".to_string());
+
         let action = cell.tick(&environment);
         match action {
             CellAction::Disconnect(target) => {
                 assert_eq!(target, "bad_neighbor");
-            },
+            }
             other => panic!("expected disconnect, got {other:?}"),
         }
     }
@@ -529,11 +562,15 @@ mod tests {
         let mut cell = SecurityCell::new("iota");
         cell.state.stress_level = 0.1; // Low stress
         cell.genome.isolation_threshold = 0.9;
-        
+
         let mut environment = env_with_threat(0.0);
-        environment.detected_neighbors.push("neighbor_1".to_string());
-        environment.detected_neighbors.push("neighbor_2".to_string());
-        
+        environment
+            .detected_neighbors
+            .push("neighbor_1".to_string());
+        environment
+            .detected_neighbors
+            .push("neighbor_2".to_string());
+
         // Mock TPM for neighbor to generate valid attestation
         // neighbor_1 is reporting neighbor_2 as an anomaly
         let neighbor_tpm = TPM::new("neighbor_1".to_string());
@@ -541,18 +578,18 @@ mod tests {
         let attestation = neighbor_tpm.attest(0, &payload).unwrap();
 
         environment.neighbor_signals.push(Signal {
-             topic: "consensus:activator".to_string(),
-             value: 2.0,
-             source: Some("neighbor_1".to_string()),
-             target: Some("neighbor_2".to_string()),
-             attestation: Some(attestation),
+            topic: "consensus:activator".to_string(),
+            value: 2.0,
+            source: Some("neighbor_1".to_string()),
+            target: Some("neighbor_2".to_string()),
+            attestation: Some(attestation),
         });
-        
+
         let action = cell.tick(&environment);
         match action {
             CellAction::Disconnect(target) => {
                 assert_eq!(target, "neighbor_2");
-            },
+            }
             other => panic!("expected coordinated disconnect of neighbor_2, got {other:?}"),
         }
     }
@@ -562,29 +599,27 @@ mod tests {
         let mut cell = SecurityCell::new("lambda");
         cell.genome.min_trust_threshold = 0.3;
         cell.genome.trust_penalty = 0.4;
-        
-        let mut signals = Vec::new();
-        // Signal from "untrusted_neighbor" with INVALID attestation (missing) for consensus topic
-        signals.push(Signal {
-             topic: "consensus:activator".to_string(),
-             value: 1.0,
-             source: Some("untrusted_neighbor".to_string()),
-             target: None,
-             attestation: None, 
-        });
 
+                // Signal from "untrusted_neighbor" with INVALID attestation (missing) for consensus topic
+                let signals = vec![Signal {
+                    topic: "consensus:activator".to_string(),
+                    value: 1.0,
+                    source: Some("untrusted_neighbor".to_string()),
+                    target: None,
+                    attestation: None,
+                }];
         let env = CellEnvironment {
             step: 0,
             local_threat_score: 0.0,
             neighbor_signals: signals,
             detected_neighbors: vec!["untrusted_neighbor".to_string()],
         };
-        
+
         let action = cell.tick(&env);
         match action {
             CellAction::Disconnect(target) => {
                 assert_eq!(target, "untrusted_neighbor");
-            },
+            }
             other => panic!("expected disconnect due to low trust, got {other:?}"),
         }
     }
@@ -594,24 +629,22 @@ mod tests {
         let mut cell = SecurityCell::new("kappa");
         cell.state.lineage = CellLineage::IntrusionDetection;
         cell.genome.anomaly_sensitivity = 0.4;
-        
-        let mut signals = Vec::new();
-        // Add a "threat" source to be accused
-        signals.push(Signal {
-             topic: "activator".to_string(),
-             value: 0.6,
-             source: Some("attacker".to_string()),
-             target: None,
-             attestation: None,
-        });
 
+                // Add a "threat" source to be accused
+                let signals = vec![Signal {
+                    topic: "activator".to_string(),
+                    value: 0.6,
+                    source: Some("attacker".to_string()),
+                    target: None,
+                    attestation: None,
+                }];
         let environment = CellEnvironment {
             step: 5,
             local_threat_score: 0.0,
             neighbor_signals: signals,
             detected_neighbors: vec!["attacker".to_string()],
         };
-        
+
         let action = cell.tick(&environment);
         match action {
             CellAction::ReportAnomaly(topic, confidence, target, attestation) => {
@@ -625,7 +658,7 @@ mod tests {
                 // NOTE: The signed payload uses "consensus:activator"
                 let payload = format!("consensus:{}:{:.1}:{}", topic, confidence, "attacker");
                 assert!(TPM::verify(&att, 5, &payload));
-            },
+            }
             other => panic!("expected anomaly report, got {other:?}"),
         }
     }
@@ -643,16 +676,16 @@ mod tests {
             neighbor_signals: Vec::new(),
             detected_neighbors: Vec::new(),
         };
-        
+
         let _ = parent.tick(&env);
-        
+
         assert!(parent.genome.stress_sensitivity < initial_sensitivity);
         assert_eq!(parent.state.immune_memory.len(), 1);
 
         let mut child = SecurityCell::new("child");
         child.genome = parent.genome.clone();
         child.state.immune_memory = parent.state.immune_memory.clone();
-        
+
         assert!(child.genome.stress_sensitivity < initial_sensitivity);
         assert_eq!(child.state.immune_memory.len(), 1);
     }

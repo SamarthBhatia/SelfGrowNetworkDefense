@@ -13,14 +13,14 @@ use std::fs::{self, File};
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
 
-use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::seq::SliceRandom;
 
 use crate::cellular::PopulationStats;
-use crate::telemetry::TopologyStats;
 use crate::config;
 use crate::config::ConfigError;
 use crate::stimulus::StimulusSchedule;
+use crate::telemetry::TopologyStats;
 use std::collections::{BTreeMap, HashSet};
 
 /// The strategy used for selecting parents for the next generation.
@@ -83,19 +83,55 @@ impl EvolutionConfig {
 /// A structured mutation to be applied to an attack candidate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Mutation {
-    IncreaseStimulus { topic: String, factor: f32 },
-    DecreaseStimulus { topic: String, factor: f32 },
-    AddSpike { step: u32, intensity: f32 },
-    ChangeEventTiming { event_index: usize, new_step: u32 },
-    ChangeThreatSpike { event_index: usize, new_step: u32, new_intensity: f32 },
-    ChangeReproductionRate { factor: f32 },
-    ChangeInitialCellCount { count: usize },
-    ChangeThreatProfile { profile: config::ThreatProfile },
-    ChangeThreatSpikeTime { spike_index: usize, new_step: u32 },
-    ChangeThreatSpikeDuration { spike_index: usize, new_duration: u32 },
-    SwapStimulus { event_index1: usize, event_index2: usize },
-    RemoveStimulus { event_index: usize },
-    ShiftStimulusTime { event_index: usize, time_delta: i32 },
+    IncreaseStimulus {
+        topic: String,
+        factor: f32,
+    },
+    DecreaseStimulus {
+        topic: String,
+        factor: f32,
+    },
+    AddSpike {
+        step: u32,
+        intensity: f32,
+    },
+    ChangeEventTiming {
+        event_index: usize,
+        new_step: u32,
+    },
+    ChangeThreatSpike {
+        event_index: usize,
+        new_step: u32,
+        new_intensity: f32,
+    },
+    ChangeReproductionRate {
+        factor: f32,
+    },
+    ChangeInitialCellCount {
+        count: usize,
+    },
+    ChangeThreatProfile {
+        profile: config::ThreatProfile,
+    },
+    ChangeThreatSpikeTime {
+        spike_index: usize,
+        new_step: u32,
+    },
+    ChangeThreatSpikeDuration {
+        spike_index: usize,
+        new_duration: u32,
+    },
+    SwapStimulus {
+        event_index1: usize,
+        event_index2: usize,
+    },
+    RemoveStimulus {
+        event_index: usize,
+    },
+    ShiftStimulusTime {
+        event_index: usize,
+        time_delta: i32,
+    },
 }
 
 /// Description of an attack scenario candidate scheduled for execution.
@@ -288,10 +324,10 @@ impl AdversarialHarness {
     /// Persist the current harness snapshot to disk.
     pub fn save_state<P: AsRef<Path>>(&self, path: P) -> Result<(), HarnessError> {
         let path = path.as_ref();
-        if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent)?;
-            }
+        if let Some(parent) = path.parent()
+            && !parent.exists()
+        {
+            fs::create_dir_all(parent)?;
         }
         let file = File::create(path)?;
         serde_json::to_writer_pretty(file, &self.snapshot_state())?;
@@ -442,15 +478,25 @@ impl AdversarialHarness {
                         SelectionStrategy::Tournament { size } => {
                             tournament_selection(&self.archive, size, &mut rng)
                         }
-                        SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
-                    }.map_err(|e| HarnessError::Custom(format!("Selection failed for parent 1: {}", e)))?;
+                        SelectionStrategy::RouletteWheel => {
+                            roulette_wheel_selection(&self.archive, &mut rng)
+                        }
+                    }
+                    .map_err(|e| {
+                        HarnessError::Custom(format!("Selection failed for parent 1: {}", e))
+                    })?;
 
                     let parent2 = match self.config.selection_strategy {
                         SelectionStrategy::Tournament { size } => {
                             tournament_selection(&self.archive, size, &mut rng)
                         }
-                        SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
-                    }.map_err(|e| HarnessError::Custom(format!("Selection failed for parent 2: {}", e)))?;
+                        SelectionStrategy::RouletteWheel => {
+                            roulette_wheel_selection(&self.archive, &mut rng)
+                        }
+                    }
+                    .map_err(|e| {
+                        HarnessError::Custom(format!("Selection failed for parent 2: {}", e))
+                    })?;
 
                     perform_crossover(
                         parent1,
@@ -465,8 +511,11 @@ impl AdversarialHarness {
                         SelectionStrategy::Tournament { size } => {
                             tournament_selection(&self.archive, size, &mut rng)
                         }
-                        SelectionStrategy::RouletteWheel => roulette_wheel_selection(&self.archive, &mut rng),
-                    }.map_err(|e| HarnessError::Custom(format!("Selection failed: {}", e)))?;
+                        SelectionStrategy::RouletteWheel => {
+                            roulette_wheel_selection(&self.archive, &mut rng)
+                        }
+                    }
+                    .map_err(|e| HarnessError::Custom(format!("Selection failed: {}", e)))?;
 
                     // Use a hash of parent ID to keep the child ID length manageable
                     use std::collections::hash_map::DefaultHasher;
@@ -476,11 +525,8 @@ impl AdversarialHarness {
                     rng.r#gen::<u64>().hash(&mut hasher);
                     let hash = hasher.finish();
 
-                    let new_candidate_id = format!("gen{}-mut{:08x}",
-                        gen_idx + 1,
-                        hash
-                    );
-                    
+                    let new_candidate_id = format!("gen{}-mut{:08x}", gen_idx + 1, hash);
+
                     let mutation = perform_mutation(
                         &self.config.mutation_strategy,
                         &parent_outcome.statistics,
@@ -500,7 +546,10 @@ impl AdversarialHarness {
                 };
                 self.enqueue(new_candidate);
             }
-            println!("[info] Enqueued {} new candidates for next generation.", num_new_candidates);
+            println!(
+                "[info] Enqueued {} new candidates for next generation.",
+                num_new_candidates
+            );
         }
 
         Ok(all_evaluations)
@@ -543,7 +592,7 @@ impl AdversarialHarness {
         let recommended_mutation = analysis.recommended_mutation.clone();
         let next_candidate = recommended_mutation.map(|mutation| {
             let next_generation = candidate.generation + 1;
-            
+
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
             let mut hasher = DefaultHasher::new();
@@ -595,14 +644,13 @@ pub fn apply_mutation_and_generate_files(
 
     // Load and mutate scenario
     let original_scenario_path = PathBuf::from(&candidate.scenario_ref);
-    let mut scenario_config =
-        config::load_from_path(&original_scenario_path).map_err(|e| {
-            HarnessError::Custom(format!(
-                "Failed to load scenario from {}: {}",
-                original_scenario_path.display(),
-                e
-            ))
-        })?;
+    let mut scenario_config = config::load_from_path(&original_scenario_path).map_err(|e| {
+        HarnessError::Custom(format!(
+            "Failed to load scenario from {}: {}",
+            original_scenario_path.display(),
+            e
+        ))
+    })?;
 
     if let Some(mutation) = &candidate.mutation {
         scenario_config.apply_mutation(mutation);
@@ -662,7 +710,11 @@ pub fn tournament_selection<'a, R: Rng>(
 
     selected_candidates
         .into_iter()
-        .max_by(|a, b| a.fitness_score.partial_cmp(&b.fitness_score).unwrap_or(std::cmp::Ordering::Equal))
+        .max_by(|a, b| {
+            a.fitness_score
+                .partial_cmp(&b.fitness_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .ok_or_else(|| "Failed to select candidate from tournament".to_string())
 }
 
@@ -683,8 +735,7 @@ pub fn roulette_wheel_selection<'a, R: Rng>(
     let total_fitness: f32 = population.iter().map(|outcome| outcome.fitness_score).sum();
 
     if total_fitness <= 0.0 {
-        // If total fitness is zero or negative, fall back to uniform random selection
-        population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string()).map(|outcome| outcome)
+        population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string())
     } else {
         let mut pick = rng.gen_range(0.0..total_fitness);
         for outcome in population {
@@ -694,7 +745,7 @@ pub fn roulette_wheel_selection<'a, R: Rng>(
             pick -= outcome.fitness_score;
         }
         // Fallback in case of floating point inaccuracies or if no outcome is picked
-        population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string()).map(|outcome| outcome)
+        population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string())
     }
 }
 
@@ -751,7 +802,7 @@ pub fn perform_crossover<R: Rng>(
     let child_scenario_ref = parent1.candidate.scenario_ref.clone();
     let child_generation =
         std::cmp::max(parent1.candidate.generation, parent2.candidate.generation) + 1;
-    
+
     // Use a hash of parent IDs to keep the child ID length manageable
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -761,12 +812,12 @@ pub fn perform_crossover<R: Rng>(
     rng.r#gen::<u64>().hash(&mut hasher);
     let hash = hasher.finish();
 
-    let child_id = format!(
-        "xover-gen{}-{:08x}",
-        child_generation, hash
-    );
+    let child_id = format!("xover-gen{}-{:08x}", child_generation, hash);
 
-    let child_stimulus_ref = match (&parent1.candidate.stimulus_ref, &parent2.candidate.stimulus_ref) {
+    let child_stimulus_ref = match (
+        &parent1.candidate.stimulus_ref,
+        &parent2.candidate.stimulus_ref,
+    ) {
         (Some(s1), Some(s2)) => {
             let p1_schedule = StimulusSchedule::load(s1)?;
             let p2_schedule = StimulusSchedule::load(s2)?;
@@ -824,20 +875,17 @@ fn perform_mutation<R: Rng>(
     rng: &mut R,
 ) -> Option<Mutation> {
     match mutation_strategy {
-        MutationStrategy::Random => {
-            recommend_mutation(stats, fitness_score, breach_observed).or_else(|| {
+        MutationStrategy::Random => recommend_mutation(stats, fitness_score, breach_observed)
+            .or_else(|| {
                 let topics = ["activator", "inhibitor", "reproducer"];
                 let topic = topics.choose(rng).unwrap_or(&"activator").to_string();
                 Some(Mutation::IncreaseStimulus {
                     topic,
                     factor: rng.gen_range(1.1..=1.5),
                 })
-            })
-        }
+            }),
     }
 }
-
-
 
 /// Load metrics produced by `scripts/prepare_telemetry_dashboard.py` and derive harness guidance.
 pub fn analyze_metrics_csv<P: AsRef<Path>>(path: P) -> Result<HarnessAnalysis, HarnessError> {
@@ -854,10 +902,10 @@ pub fn write_step_metrics_csv<P: AsRef<Path>>(
     steps: &[StepMetrics],
 ) -> Result<(), HarnessError> {
     let path = path.as_ref();
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)?;
-        }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent)?;
     }
 
     let mut writer = WriterBuilder::new().has_headers(true).from_path(path)?;
@@ -1165,7 +1213,9 @@ fn compute_fitness(stats: &RunStatistics) -> (f32, bool) {
     let stimulus_component =
         (stats.total_stimulus / ((stats.step_count as f32).max(1.0) * 1.5)).clamp(0.0, 1.0);
     let lineage_component = compute_lineage_component(stats);
-    let topology_component = (stats.max_isolation_count as f32 / (stats.max_cell_count as f32 + f32::EPSILON)).clamp(0.0, 1.0);
+    let topology_component = (stats.max_isolation_count as f32
+        / (stats.max_cell_count as f32 + f32::EPSILON))
+        .clamp(0.0, 1.0);
 
     let fitness = 0.3 * threat_component
         + 0.2 * suppression_component
@@ -1302,7 +1352,6 @@ mod tests {
     use tempfile::NamedTempFile;
     use tempfile::tempdir;
 
-
     #[test]
     fn retain_elite_requeues_elite_candidates() {
         let mut harness = AdversarialHarness::new(EvolutionConfig {
@@ -1329,7 +1378,7 @@ mod tests {
             .run_generations(1, artifact_dir.path(), |_candidate| {
                 // Simulate an elite candidate (high fitness, no mutation recommended)
                 let steps = vec![StepMetrics {
-                    step: 1, // Changed step to 1 to influence lineage_pressure calculation
+                    step: 1,           // Changed step to 1 to influence lineage_pressure calculation
                     threat_score: 1.0, // Increased threat to make fitness_score > 0.4
                     cell_count: 10,
                     replications: 0,
@@ -1507,7 +1556,11 @@ mod tests {
         assert_eq!(outcome.candidate.id, "seed-ci");
         assert_eq!(outcome.statistics.step_count, 2);
         if let Some(mutant) = maybe_mutation {
-            assert!(mutant.id.starts_with("gen1-rec"), "Expected ID to start with gen1-rec, got {}", mutant.id);
+            assert!(
+                mutant.id.starts_with("gen1-rec"),
+                "Expected ID to start with gen1-rec, got {}",
+                mutant.id
+            );
             assert_eq!(
                 mutant.stimulus_ref.as_deref(),
                 Some("docs/examples/ci-stimulus.jsonl")
@@ -1845,15 +1898,16 @@ mod tests {
         let suggestion =
             recommend_mutation(&stats, fitness, breach).expect("expected dominant lineage focus");
         assert!(
-            matches!(suggestion,  Mutation::IncreaseStimulus { .. }),
+            matches!(suggestion, Mutation::IncreaseStimulus { .. }),
             "expected focus guidance: {suggestion:?}"
         );
         if let Mutation::IncreaseStimulus { topic, .. } = suggestion {
             let lineages = ["IntrusionDetection", "AdaptiveProbe", "Recon"];
-                    assert!(
-                        lineages.iter().any(|lineage| *topic == **lineage),
-                        "expected suggestion to reference a known lineage: {topic}"
-                    );        }
+            assert!(
+                lineages.iter().any(|lineage| *topic == **lineage),
+                "expected suggestion to reference a known lineage: {topic}"
+            );
+        }
     }
 
     #[test]
@@ -1948,11 +2002,13 @@ mod tests {
         assert_eq!(child.scenario_ref, "scenario1.yaml");
         assert!(child.stimulus_ref.is_some());
         assert_eq!(child.generation, 3);
-        assert!(child.id.starts_with("xover-gen3-"), "Expected ID to start with xover-gen3-, got {}", child.id);
+        assert!(
+            child.id.starts_with("xover-gen3-"),
+            "Expected ID to start with xover-gen3-, got {}",
+            child.id
+        );
         assert!(child.mutation.is_some());
     }
-
-
 
     #[test]
     fn test_tournament_selection() {
@@ -2002,7 +2058,7 @@ mod tests {
 
     #[test]
     fn test_roulette_wheel_selection() {
-         let stats = RunStatistics {
+        let stats = RunStatistics {
             step_count: 1,
             avg_threat: 0.1,
             max_threat: 0.2,
@@ -2063,6 +2119,7 @@ mod tests {
     }
 
     impl TestRow {
+        #[allow(clippy::too_many_arguments)]
         fn new(
             step: u32,
             threat_score: f32,
