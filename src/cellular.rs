@@ -185,7 +185,7 @@ impl PopulationStats {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SecurityCell {
     pub id: String,
     pub state: CellState,

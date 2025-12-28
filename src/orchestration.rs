@@ -155,6 +155,10 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     // Graph Mode: Only look at adjacency list neighbors
                     if let Some(neighbors) = self.neighbors.get(&cell.id) {
                         for neighbor_id in neighbors {
+                            // Extra check: ignore if blacklisted (redundant if link removed, but safe)
+                            if cell.state.blacklist.contains(neighbor_id) {
+                                continue;
+                            }
                             if let Some(neighbor_signals) = signals_by_source.get(neighbor_id) {
                                 for signal in neighbor_signals {
                                     if signal.target.as_ref().map_or(true, |t| t == &cell.id) {

@@ -141,6 +141,10 @@ testbed.
 - **Swarm Trust Hardening:**
     - Upgraded `TPM` simulation to use true asymmetric cryptography (`ed25519-dalek`) with a registry of public keys, ensuring `SecurityCell` logic cannot access secrets.
     - Implemented robust signature generation and verification binding `step`, `payload_hash`, and `cell_id`.
+- **Final Hardening**:
+    - Removed `Clone` and `Debug` from `TPM` to prevent accidental key exfiltration.
+    - Implemented manual redaction for `TPM` logging.
+    - Refined `MorphogeneticApp` to filter pending signals from blacklisted neighbors in both `Global` and `Graph` modes, ensuring immediate quarantine effect.
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -156,6 +160,8 @@ testbed.
     - Addressed critical audit findings regarding consensus signatures and TPM forgery.
     - Upgraded `TPM` to use `ed25519-dalek` for asymmetric signing.
     - Implemented logical isolation (blacklisting) for Global topology.
+    - Secured `TPM` struct against accidental key leakage.
+    - Enforced strict signal filtering for blacklisted neighbors in all topologies.
     - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.

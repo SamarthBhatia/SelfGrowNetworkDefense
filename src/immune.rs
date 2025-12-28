@@ -27,13 +27,26 @@ pub struct Attestation {
 
 /// Simulated Trusted Platform Module (TPM).
 /// Now uses true asymmetric cryptography.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct TPM {
     pub cell_id: String,
     pub compromised: bool,
     // Private signing key (serialized bytes for storage/cloning)
     secret_bytes: Vec<u8>,
 }
+
+impl std::fmt::Debug for TPM {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TPM")
+            .field("cell_id", &self.cell_id)
+            .field("compromised", &self.compromised)
+            .field("secret_bytes", &"<REDACTED>")
+            .finish()
+    }
+}
+
+// Ensure TPM cannot be cloned to prevent key exfiltration/duplication
+// (SecurityCell must also lose Clone derive)
 
 // Registry stores only PUBLIC verification keys.
 static PKI_REGISTRY: OnceLock<Mutex<HashMap<String, Vec<u8>>>> = OnceLock::new();
