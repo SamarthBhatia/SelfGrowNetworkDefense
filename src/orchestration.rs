@@ -243,7 +243,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         }
 
         let cell_count = self.cells.len();
-        let population_stats = if step_index % 10 == 0 || cell_count < 100 {
+        let population_stats = if step_index % 10 == 0 || cell_count < 500 {
             Some(PopulationStats::from_cells(&self.cells))
         } else {
             None
@@ -267,6 +267,9 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         match action {
             CellAction::Idle => {}
             CellAction::Replicate(child_id) => {
+                if self.cells.len() >= 100 {
+                    return; // Cap population at 100
+                }
                 let mut child = SecurityCell::new(child_id.clone());
                 // Inherit genome and immune memory from parent
                 child.genome = self.cells[index].genome.clone();

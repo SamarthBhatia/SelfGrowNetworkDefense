@@ -1,0 +1,22 @@
+# Distributed Pressure Scenario
+# A hostile environment with high background threat and multiple potential points of failure.
+
+scenario_name: distributed-pressure
+initial_cell_count: 10
+simulation_steps: 100
+threat_profile:
+  background_threat: 0.2
+  spike_threshold: 0.8
+cell_reproduction_rate: 1.0
+topology:
+  strategy: Global
+spikes:
+  - step: 20
+    intensity: 0.5
+    duration: 10
+  - step: 50
+    intensity: 0.6
+    duration: 5
+  - step: 80
+    intensity: 0.4
+    duration: 10

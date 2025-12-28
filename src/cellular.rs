@@ -71,8 +71,8 @@ impl Default for CellGenome {
             threat_inhibitor_factor: 0.35,
             stress_decay: 0.45,
             stress_sensitivity: 0.7,
-            energy_recharge: 0.08,
-            energy_threat_drain: 0.25,
+            energy_recharge: 0.15, // Increased from 0.08
+            energy_threat_drain: 0.15, // Reduced from 0.25
             energy_inhibitor_drain: 0.1,
             reproduction_threshold: 0.75,
             reproduction_energy_cost: 0.3,
@@ -82,7 +82,7 @@ impl Default for CellGenome {
             healer_stress_limit: 0.3,
             encryption_cooperative_threshold: 0.5,
             encryption_energy_min: 0.9,
-            signal_emission_threshold: 0.4,
+            signal_emission_threshold: 0.6, // Increased from 0.4
             connection_cost: 0.1,
             isolation_threshold: 0.85,
             anomaly_sensitivity: 0.5,

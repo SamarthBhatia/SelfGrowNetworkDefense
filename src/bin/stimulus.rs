@@ -42,6 +42,7 @@ fn run() -> Result<(), String> {
         value,
         target: None,
         source: None,
+        duration: 1,
     };
 
     append_command(PathBuf::from(file_path), &command)

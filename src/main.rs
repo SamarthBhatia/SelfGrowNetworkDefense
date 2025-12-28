@@ -1,7 +1,7 @@
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
 use morphogenetic_security::signaling::Signal;
-use morphogenetic_security::stimulus::StimulusSchedule;
+use morphogenetic_security::stimulus::{StimulusSchedule, StimulusCommand};
 use morphogenetic_security::telemetry::{InMemorySink, TelemetryPipeline, TelemetryEvent, TelemetrySink};
 use morphogenetic_security::{MorphogeneticApp, ScenarioConfig};
 use std::cmp::max;

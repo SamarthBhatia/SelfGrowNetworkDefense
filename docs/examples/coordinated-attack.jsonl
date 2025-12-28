@@ -1,0 +1,8 @@
+{"step": 10, "topic": "activator", "value": 0.8, "source": "seed-0", "duration": 20}
+{"step": 30, "topic": "activator", "value": 0.8, "source": "seed-1", "duration": 20}
+{"step": 50, "topic": "activator", "value": 0.8, "source": "seed-2", "duration": 20}
+{"step": 100, "topic": "consensus:activator", "value": 1.2, "source": "seed-0", "target": "seed-5", "duration": 10}
+{"step": 110, "topic": "consensus:activator", "value": 1.2, "source": "seed-1", "target": "seed-6", "duration": 10}
+{"step": 120, "topic": "consensus:activator", "value": 1.2, "source": "seed-2", "target": "seed-7", "duration": 10}
+{"step": 200, "topic": "activator", "value": 1.5, "source": "seed-3", "duration": 50}
+{"step": 210, "topic": "activator", "value": 1.5, "source": "seed-4", "duration": 50}
