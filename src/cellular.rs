@@ -204,6 +204,7 @@ pub enum CellAction {
     Connect(String),
     Disconnect(String),
     ReportAnomaly(String, f32, Option<String>, Option<Attestation>),
+    NotifyTrustUpdate(String, f32),
 }
 
 impl SecurityCell {
@@ -258,8 +259,13 @@ impl SecurityCell {
                     }
                 } else if signal.topic.starts_with("consensus:") {
                      // Consensus signals MUST be attested. Penalize if missing.
-                     *self.state.neighbor_trust.entry(source.clone()).or_insert(0.5) = 
-                            (trust - self.genome.trust_penalty).max(0.0);
+                     let new_trust = (trust - self.genome.trust_penalty).max(0.0);
+                     self.state.neighbor_trust.insert(source.clone(), new_trust);
+                     // If we are about to return Idle, return trust update notification instead
+                     // (This is a hack to get telemetry without Vec<Action>)
+                     if new_trust >= self.genome.min_trust_threshold {
+                        return CellAction::NotifyTrustUpdate(source.clone(), new_trust);
+                     }
                 }
             }
 

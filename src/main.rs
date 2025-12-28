@@ -72,7 +72,7 @@ fn main() {
                 app.inject_signal(Signal {
                     topic: command.topic.clone(),
                     value: command.value,
-                    source: None,
+                    source: command.source.clone(),
                     target: command.target.clone(),
                     attestation: None,
                 });

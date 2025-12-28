@@ -41,6 +41,11 @@ pub enum TelemetryEvent {
         cell_id: String,
         target_id: String,
     },
+    TrustScoreUpdated {
+        cell_id: String,
+        target_id: String,
+        new_score: f32,
+    },
     AnomalyDetected {
         cell_id: String,
         topic: String,

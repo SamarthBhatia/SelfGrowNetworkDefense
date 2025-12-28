@@ -435,8 +435,19 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                                                                      },
                                                                  );
                                                              }
-                                                         }
-                                                     }
+            CellAction::NotifyTrustUpdate(target_id, new_score) => {
+                let cell_id = self.cells[index].id.clone();
+                self.telemetry.record(
+                    SystemTime::now(),
+                    TelemetryEvent::TrustScoreUpdated {
+                        cell_id,
+                        target_id,
+                        new_score,
+                    },
+                );
+            }
+        }
+    }
                                                  
                          #[allow(dead_code)]
     pub fn telemetry(&self) -> &TSink {

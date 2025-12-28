@@ -265,7 +265,7 @@ fn simulate_candidate(
                     app.inject_signal(Signal {
                         topic: command.topic.clone(),
                         value: command.value,
-                        source: None,
+                        source: command.source.clone(),
                         target: command.target.clone(),
                         attestation: None,
                     });
@@ -323,7 +323,8 @@ fn simulate_candidate(
                 | TelemetryEvent::LinkRemoved { .. }
                 | TelemetryEvent::AnomalyDetected { .. }
                 | TelemetryEvent::VoteCast { .. }
-                | TelemetryEvent::PeerQuarantined { .. } => {}
+                | TelemetryEvent::PeerQuarantined { .. }
+                | TelemetryEvent::TrustScoreUpdated { .. } => {}
             }
         }
 
