@@ -368,10 +368,19 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                      self.telemetry.record(
                          SystemTime::now(),
                          TelemetryEvent::LinkRemoved {
-                             source: cell_id,
-                             target: target_id,
+                             source: cell_id.clone(),
+                             target: target_id.clone(),
                          },
                      );
+                     
+                     // Immediate Mute: Purge pending signals from the disconnected target
+                     // destined for this cell to prevent "final burst" attacks.
+                     // Access inner queue via drain/retain (SignalBus logic)
+                     // Wait, SignalBus doesn't expose queue directly?
+                     // I need to add a purge method to SignalBus.
+                     // Or access if public? `queue` is private in `signaling.rs`.
+                     // Let's add `purge_from` to SignalBus.
+                     self.signal_bus.purge_from(&target_id, &cell_id);
                 } else if matches!(self.topology_config.strategy, TopologyStrategy::Global) {
                      // In Global mode, logical isolation is handled by the blacklist.
                      self.telemetry.record(

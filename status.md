@@ -158,6 +158,10 @@ testbed.
     - Ensured `cargo check` and `cargo test` run cleanly.
 - **Persistence Hardening**:
     - Re-enabled `TPM` serialization but with custom XOR obfuscation for `secret_bytes` to balance simulation persistence needs with security hygiene.
+- **Secure Persistence & Immediate Mute**:
+    - Implemented manual `Serialize` / `Deserialize` for `TPM` to obfuscate secrets and automatically re-register public keys upon restoration.
+    - Added `purge_from` to `SignalBus` and invoked it in `handle_action` to delete pending messages from disconnected peers instantly.
+    - Verified all logic with passing tests (35/35).
                                                                                                                                                        
 ### In Progress 
 - Analyzing the effectiveness of defense evolution (genome drift) under adversarial pressure.
@@ -181,6 +185,8 @@ testbed.
     - Implemented `PeerQuarantined` event for logical isolation.
     - Resolved all compiler warnings.
     - Enabled custom XOR-obfuscated serialization for `TPM` secrets to fix persistence bug.
+    - Re-registered public keys in `Deserialize` to fix post-restore verification.
+    - Implemented `immediate_mute` by purging signal bus upon disconnect.
     - All tests passed.
 - **Next Session Starting Point**:
     - Begin Phase 4 Validation Experiments.

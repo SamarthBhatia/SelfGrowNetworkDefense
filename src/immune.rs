@@ -28,34 +28,69 @@ pub struct Attestation {
 
 /// Simulated Trusted Platform Module (TPM).
 /// Now uses true asymmetric cryptography.
-#[derive(Serialize, Deserialize)]
 pub struct TPM {
     pub cell_id: String,
     pub compromised: bool,
     // Private signing key (serialized bytes for internal use only)
-    // Encrypted during serialization to prevent cleartext leakage.
-    #[serde(serialize_with = "encrypt_secret", deserialize_with = "decrypt_secret")]
     secret_bytes: Vec<u8>,
 }
 
-fn encrypt_secret<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    // Simple XOR obfuscation for simulation persistence
-    let key = 0xAA;
-    let encrypted: Vec<u8> = bytes.iter().map(|b| b ^ key).collect();
-    serializer.serialize_bytes(&encrypted)
+impl Serialize for TPM {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("TPM", 3)?;
+        state.serialize_field("cell_id", &self.cell_id)?;
+        state.serialize_field("compromised", &self.compromised)?;
+        
+        // Obfuscate secret using cell_id as salt (simulation security)
+        let salt = md5::compute(&self.cell_id).0;
+        let encrypted: Vec<u8> = self.secret_bytes.iter().enumerate()
+            .map(|(i, b)| b ^ salt[i % 16])
+            .collect();
+            
+        state.serialize_field("secret_bytes", &encrypted)?;
+        state.end()
+    }
 }
 
-fn decrypt_secret<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let encrypted: Vec<u8> = serde_bytes::deserialize(deserializer)?;
-    let key = 0xAA;
-    let decrypted: Vec<u8> = encrypted.iter().map(|b| b ^ key).collect();
-    Ok(decrypted)
+impl<'de> Deserialize<'de> for TPM {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct TPMDef {
+            cell_id: String,
+            compromised: bool,
+            secret_bytes: Vec<u8>,
+        }
+        
+        let def = TPMDef::deserialize(deserializer)?;
+        
+        // De-obfuscate
+        let salt = md5::compute(&def.cell_id).0;
+        let secret_bytes: Vec<u8> = def.secret_bytes.iter().enumerate()
+            .map(|(i, b)| b ^ salt[i % 16])
+            .collect();
+            
+        // Re-register public key in PKI
+        if !def.compromised && !secret_bytes.is_empty() {
+            if let Ok(bytes) = secret_bytes.as_slice().try_into() {
+                let signing_key = SigningKey::from_bytes(bytes);
+                let verifying_key = signing_key.verifying_key();
+                get_pki().lock().unwrap().insert(def.cell_id.clone(), verifying_key.to_bytes().to_vec());
+            }
+        }
+        
+        Ok(TPM {
+            cell_id: def.cell_id,
+            compromised: def.compromised,
+            secret_bytes,
+        })
+    }
 }
 
 impl std::fmt::Debug for TPM {
