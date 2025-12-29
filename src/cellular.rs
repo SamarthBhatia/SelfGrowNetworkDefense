@@ -600,14 +600,14 @@ mod tests {
         cell.genome.min_trust_threshold = 0.3;
         cell.genome.trust_penalty = 0.4;
 
-                // Signal from "untrusted_neighbor" with INVALID attestation (missing) for consensus topic
-                let signals = vec![Signal {
-                    topic: "consensus:activator".to_string(),
-                    value: 1.0,
-                    source: Some("untrusted_neighbor".to_string()),
-                    target: None,
-                    attestation: None,
-                }];
+        // Signal from "untrusted_neighbor" with INVALID attestation (missing) for consensus topic
+        let signals = vec![Signal {
+            topic: "consensus:activator".to_string(),
+            value: 1.0,
+            source: Some("untrusted_neighbor".to_string()),
+            target: None,
+            attestation: None,
+        }];
         let env = CellEnvironment {
             step: 0,
             local_threat_score: 0.0,
@@ -630,14 +630,14 @@ mod tests {
         cell.state.lineage = CellLineage::IntrusionDetection;
         cell.genome.anomaly_sensitivity = 0.4;
 
-                // Add a "threat" source to be accused
-                let signals = vec![Signal {
-                    topic: "activator".to_string(),
-                    value: 0.6,
-                    source: Some("attacker".to_string()),
-                    target: None,
-                    attestation: None,
-                }];
+        // Add a "threat" source to be accused
+        let signals = vec![Signal {
+            topic: "activator".to_string(),
+            value: 0.6,
+            source: Some("attacker".to_string()),
+            target: None,
+            attestation: None,
+        }];
         let environment = CellEnvironment {
             step: 5,
             local_threat_score: 0.0,

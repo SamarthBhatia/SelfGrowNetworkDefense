@@ -735,7 +735,9 @@ pub fn roulette_wheel_selection<'a, R: Rng>(
     let total_fitness: f32 = population.iter().map(|outcome| outcome.fitness_score).sum();
 
     if total_fitness <= 0.0 {
-        population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string())
+        population
+            .choose(rng)
+            .ok_or_else(|| "Failed to select candidate from population".to_string())
     } else {
         let mut pick = rng.gen_range(0.0..total_fitness);
         for outcome in population {
@@ -745,7 +747,9 @@ pub fn roulette_wheel_selection<'a, R: Rng>(
             pick -= outcome.fitness_score;
         }
         // Fallback in case of floating point inaccuracies or if no outcome is picked
-        population.choose(rng).ok_or_else(|| "Failed to select candidate from population".to_string())
+        population
+            .choose(rng)
+            .ok_or_else(|| "Failed to select candidate from population".to_string())
     }
 }
 

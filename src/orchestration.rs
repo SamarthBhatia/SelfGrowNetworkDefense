@@ -164,9 +164,11 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     // Global Mode: Iterate all signals, filtering blacklisted sources
                     for signal in signals.iter().filter(|s| s.source.is_some()) {
                         let source_id = signal.source.as_ref().unwrap();
-                        if !cell.state.blacklist.contains(source_id) && signal.target.as_ref().is_none_or(|t| t == &cell.id) {
-                                cell_signals.push(signal.clone());
-                            }
+                        if !cell.state.blacklist.contains(source_id)
+                            && signal.target.as_ref().is_none_or(|t| t == &cell.id)
+                        {
+                            cell_signals.push(signal.clone());
+                        }
                     }
                 } else {
                     // Graph Mode: Only look at adjacency list neighbors
@@ -375,19 +377,25 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
             CellAction::Disconnect(target_id) => {
                 let cell_id = self.cells[index].id.clone();
                 // Add to local blacklist regardless of topology strategy
-                if let Some(cell) = self.cells.get_mut(index) && !cell.state.blacklist.contains(&target_id) {
-                        cell.state.blacklist.push(target_id.clone());
-                    }
+                if let Some(cell) = self.cells.get_mut(index)
+                    && !cell.state.blacklist.contains(&target_id)
+                {
+                    cell.state.blacklist.push(target_id.clone());
+                }
 
                 if matches!(self.topology_config.strategy, TopologyStrategy::Graph) {
                     // Remove forward link
-                    if let Some(neighbors) = self.neighbors.get_mut(&cell_id) && let Some(pos) = neighbors.iter().position(|x| x == &target_id) {
-                            neighbors.remove(pos);
-                        }
+                    if let Some(neighbors) = self.neighbors.get_mut(&cell_id)
+                        && let Some(pos) = neighbors.iter().position(|x| x == &target_id)
+                    {
+                        neighbors.remove(pos);
+                    }
                     // Remove backward link (undirected graph assumption for now, or just symmetric)
-                    if let Some(neighbors) = self.neighbors.get_mut(&target_id) && let Some(pos) = neighbors.iter().position(|x| x == &cell_id) {
-                            neighbors.remove(pos);
-                        }
+                    if let Some(neighbors) = self.neighbors.get_mut(&target_id)
+                        && let Some(pos) = neighbors.iter().position(|x| x == &cell_id)
+                    {
+                        neighbors.remove(pos);
+                    }
 
                     self.telemetry.record(
                         SystemTime::now(),
@@ -409,10 +417,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     // In Global mode, logical isolation is handled by the blacklist.
                     self.telemetry.record(
                         SystemTime::now(),
-                        TelemetryEvent::PeerQuarantined {
-                            cell_id,
-                            target_id,
-                        },
+                        TelemetryEvent::PeerQuarantined { cell_id, target_id },
                     );
                 }
             }
