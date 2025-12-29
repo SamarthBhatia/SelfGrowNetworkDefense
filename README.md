@@ -38,7 +38,7 @@ Unlike traditional static defense systems, this architecture uses **biological p
 
 ### Build
 ```bash
-car go build --release
+cargo build --release
 ```
 
 ### Quick Demo: The "Pitch"
@@ -46,7 +46,7 @@ Run a pre-packaged demonstration showing the difference between a baseline scena
 
 ```bash
 scripts/pitch_demo.sh
-car go run --bin pitch_tui -- target/pitch_demo
+cargo run --bin pitch_tui -- target/pitch_demo
 ```
 
 ---
@@ -57,7 +57,7 @@ car go run --bin pitch_tui -- target/pitch_demo
 Execute the runtime with a specific scenario configuration:
 
 ```bash
-car go run --release -- \
+cargo run --release -- \
   --config docs/examples/distributed-pressure.yaml \
   --telemetry viral_telemetry.jsonl
 ```
