@@ -266,7 +266,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         }
 
         let cell_count = self.cells.len();
-        let population_stats = if step_index % 10 == 0 || cell_count < 500 {
+        let population_stats = if step_index.is_multiple_of(10) || cell_count < 500 {
             Some(PopulationStats::from_cells(&self.cells))
         } else {
             None
