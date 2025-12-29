@@ -73,6 +73,18 @@ testbed.
 - **Next Session Starting Point**:
     - Decide whether to fix documentation/CLI mismatches first or tackle the consensus-trust bug and genome/default drift gap so code, docs, and evidence converge.
 
+### 2025-12-28 — Session 60
+- **Focus**: Verify reported fixes from consensus/doc cleanup work.
+- **Actions**:
+    - Reviewed `README.md`, `src/cellular.rs`, and `src/signaling.rs` to confirm consensus hardening, signal muting, and documentation edits.
+    - Ran `cargo fmt -- --check`, `cargo clippy --all-targets --all-features`, and `cargo test` to validate the stability claim (all passed locally).
+- **Findings**:
+    - README still contains the broken `car go` commands and the overstated “hardened genome baked into defaults” claim (`README.md:39-108`); defaults in `src/cellular.rs:68-93` remain unchanged.
+    - `SecurityCell::tick` still returns `NotifyTrustUpdate` before any attestation check, so the consensus DoS remains exploitable (`src/cellular.rs:284-292`).
+    - `SignalBus::purge_from` only drops fully targeted signals; no new broadcast mitigation beyond existing blacklist filtering (`src/signaling.rs:31-65`).
+- **Next Session Starting Point**:
+    - Report verification results to requester and align on follow-up fixes for README, consensus gating, and mute semantics.
+
 ### 2025-12-28 — Session 58
 - **Focus**: Phase 4 Evolution Validation.
 - **Actions**:
