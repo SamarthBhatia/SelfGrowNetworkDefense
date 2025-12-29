@@ -18,7 +18,7 @@ cargo run --quiet --bin stimulus -- "$STIMULUS_FILE" activator 0.9 3
 cargo run --quiet --bin stimulus -- "$STIMULUS_FILE" inhibitor 0.4 5
 
 # Execute the morphogenetic runtime against the intense-defense scenario
-cargo run --quiet -- \
+cargo run --quiet --bin morphogenetic-security -- \
   --config "$ROOT_DIR/docs/examples/intense-defense.yaml" \
   --telemetry "$TELEMETRY_FILE" \
   --stimulus "$STIMULUS_FILE"

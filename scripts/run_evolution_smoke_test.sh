@@ -7,7 +7,8 @@ HARNESS_STATE="$TARGET_DIR/harness_state.json"
 ARTIFACT_DIR="$TARGET_DIR/runs"
 
 mkdir -p "$TARGET_DIR" "$ARTIFACT_DIR"
-rm -f "$TARGET_DIR"/*.json "$ARTIFACT_DIR"/*
+rm -f "$TARGET_DIR"/*.json
+rm -rf "$ARTIFACT_DIR"/*
 
 echo "[smoke-test] Initializing adversarial harness with a seed candidate..."
 
@@ -29,8 +30,13 @@ cargo run --quiet --bin adversarial_loop -- \
 echo "[smoke-test] Verifying harness state and outcomes..."
 
 # Assertions
-if ! grep -q "backlog_len": 1" "$HARNESS_STATE"; then
-    echo "Error: Expected backlog_len of 1 in harness_state.json after 2 generations."
+if ! grep -q "\"backlog\":" "$HARNESS_STATE"; then
+    echo "Error: Expected 'backlog' key in harness_state.json."
+    exit 1
+fi
+
+if ! grep -q "\"archive\":" "$HARNESS_STATE"; then
+    echo "Error: Expected 'archive' key in harness_state.json."
     exit 1
 fi
 

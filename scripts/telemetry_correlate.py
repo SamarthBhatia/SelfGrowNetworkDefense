@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    per_step, _ = load_telemetry_per_step(args.telemetry)
+    per_step, _, _ = load_telemetry_per_step(args.telemetry)
     stimuli = load_stimuli(args.stimulus) if args.stimulus else {}
 
     if not per_step:
