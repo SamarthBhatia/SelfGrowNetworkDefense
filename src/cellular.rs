@@ -282,13 +282,38 @@ impl SecurityCell {
                             .or_insert(0.5) = (trust - self.genome.trust_penalty).max(0.0);
                     }
                 } else if signal.topic.starts_with("consensus:") {
-                    // Consensus signals MUST be attested. Penalize if missing.
-                    let new_trust = (trust - self.genome.trust_penalty).max(0.0);
-                    self.state.neighbor_trust.insert(source.clone(), new_trust);
-                    // If we are about to return Idle, return trust update notification instead
-                    // (This is a hack to get telemetry without Vec<Action>)
-                    if new_trust >= self.genome.min_trust_threshold {
-                        return CellAction::NotifyTrustUpdate(source.clone(), new_trust);
+                    // Consensus signals MUST be attested. Penalize if missing or invalid.
+                    // To prevent DoS, we do NOT early return here. We just penalize trust.
+                    if let Some(attestation) = &signal.attestation {
+                        let payload = format!(
+                            "{}:{:.1}:{}",
+                            signal.topic,
+                            signal.value,
+                            signal.target.as_deref().unwrap_or("none")
+                        );
+                        if attestation.cell_id == *source
+                            && TPM::verify(attestation, environment.step as u64, &payload)
+                        {
+                            // Valid consensus signal. Trust already rewarded/penalized above via general path?
+                            // No, general path only rewards if `attestation` field is present.
+                            // But `tick` iterates signals.
+                            // Let's rely on the general attestation verification block above for trust updates?
+                            // Wait, the block above handles `signal.attestation` generally.
+                            // This `else if` block was specifically for `consensus:` topics that MIGHT lack attestation in the old logic.
+                            // But now we enforce attestation for EVERYTHING that matters.
+                            // If `signal.attestation` is present, it entered the first `if` block.
+                            // So this `else if` block is reached ONLY if `signal.attestation` is NONE.
+                            // Therefore, any `consensus:` signal reaching here is unauthenticated.
+                            // We should penalize and ignore it.
+                            let trust = *self.state.neighbor_trust.get(source).unwrap_or(&0.5);
+                            let new_trust = (trust - self.genome.trust_penalty).max(0.0);
+                            self.state.neighbor_trust.insert(source.clone(), new_trust);
+                        }
+                    } else {
+                         // Unauthenticated consensus signal. Penalize.
+                         let trust = *self.state.neighbor_trust.get(source).unwrap_or(&0.5);
+                         let new_trust = (trust - self.genome.trust_penalty).max(0.0);
+                         self.state.neighbor_trust.insert(source.clone(), new_trust);
                     }
                 }
             }
