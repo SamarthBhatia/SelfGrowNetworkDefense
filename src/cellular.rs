@@ -68,13 +68,13 @@ pub struct CellGenome {
 impl Default for CellGenome {
     fn default() -> Self {
         Self {
-            threat_inhibitor_factor: 0.35,
+            threat_inhibitor_factor: 0.38, // Hardened from 0.35
             stress_decay: 0.45,
-            stress_sensitivity: 0.7,
-            energy_recharge: 0.15,     // Increased from 0.08
-            energy_threat_drain: 0.15, // Reduced from 0.25
+            stress_sensitivity: 0.64, // Hardened from 0.7
+            energy_recharge: 0.15,
+            energy_threat_drain: 0.15,
             energy_inhibitor_drain: 0.1,
-            reproduction_threshold: 0.75,
+            reproduction_threshold: 0.90, // Hardened from 0.75
             reproduction_energy_cost: 0.3,
             reproduction_energy_min: 0.6,
             stress_differentiation_threshold: 0.75,
@@ -82,7 +82,7 @@ impl Default for CellGenome {
             healer_stress_limit: 0.3,
             encryption_cooperative_threshold: 0.5,
             encryption_energy_min: 0.9,
-            signal_emission_threshold: 0.6, // Increased from 0.4
+            signal_emission_threshold: 0.6,
             connection_cost: 0.1,
             isolation_threshold: 0.85,
             anomaly_sensitivity: 0.5,
@@ -310,10 +310,10 @@ impl SecurityCell {
                             self.state.neighbor_trust.insert(source.clone(), new_trust);
                         }
                     } else {
-                         // Unauthenticated consensus signal. Penalize.
-                         let trust = *self.state.neighbor_trust.get(source).unwrap_or(&0.5);
-                         let new_trust = (trust - self.genome.trust_penalty).max(0.0);
-                         self.state.neighbor_trust.insert(source.clone(), new_trust);
+                        // Unauthenticated consensus signal. Penalize.
+                        let trust = *self.state.neighbor_trust.get(source).unwrap_or(&0.5);
+                        let new_trust = (trust - self.genome.trust_penalty).max(0.0);
+                        self.state.neighbor_trust.insert(source.clone(), new_trust);
                     }
                 }
             }
@@ -713,5 +713,41 @@ mod tests {
 
         assert!(child.genome.stress_sensitivity < initial_sensitivity);
         assert_eq!(child.state.immune_memory.len(), 1);
+    }
+
+    #[test]
+    fn test_traitor_isolation_speed() {
+        let mut cell = SecurityCell::new("protector");
+        cell.genome.trust_penalty = 0.2;
+        cell.genome.min_trust_threshold = 0.2;
+
+        let mut environment = CellEnvironment {
+            step: 0,
+            local_threat_score: 0.0,
+            neighbor_signals: Vec::new(),
+            detected_neighbors: vec!["traitor".to_string()],
+        };
+
+        // Step 0: Traitor sends unauthenticated consensus signal (Trust 0.5 -> 0.3)
+        // We expect Idle (no DoS via NotifyTrustUpdate, and no Disconnect yet)
+        environment.step = 0;
+        environment.neighbor_signals = vec![Signal {
+            topic: "consensus:activator".to_string(),
+            value: 1.0,
+            source: Some("traitor".to_string()),
+            target: None,
+            attestation: None,
+        }];
+        let action = cell.tick(&environment);
+        assert!(matches!(action, CellAction::Idle), "Expected Idle, got {:?}", action);
+
+        // Step 1: Traitor sends again (Trust 0.3 -> 0.1)
+        // We expect Disconnect (Trust < 0.2)
+        environment.step = 1;
+        let action = cell.tick(&environment);
+        match action {
+            CellAction::Disconnect(target) => assert_eq!(target, "traitor"),
+            other => panic!("Expected isolation of traitor, got {other:?}"),
+        }
     }
 }
