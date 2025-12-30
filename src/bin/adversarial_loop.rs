@@ -506,12 +506,9 @@ Options:
   --artifact-dir <path>    Directory for telemetry and metrics outputs (default: target/adversarial_runs)
   --batch-size <n>         Override batch size when creating a new harness
   --max-generations <n>    Override archival depth when creating a new harness
-  --elite-size <n>         Number of elite candidates to carry over (default: 1)
-  --exploration-generations <n> Number of initial generations for exploration (default: 3)
   --seed <id>=<scenario>   Enqueue a seed scenario (can repeat)
   --stimulus <path>        Stimulus schedule JSONL applied to each run
   --crossover-rate <f32>   The probability of performing crossover (0.0 to 1.0)
-  --mutation-strategy <s>  The mutation strategy to use (e.g., Random)
   --help                   Show this message"
     );
 }

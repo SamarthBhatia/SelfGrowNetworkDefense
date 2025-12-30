@@ -330,12 +330,9 @@ fn print_usage() {
 
 Options:
   --generation <n>         Generation index for the evaluated candidate (default: 0)
-  --note <text>            Optional note describing the evaluated candidate
   --stimulus <path>        Associate a stimulus schedule with the candidate
   --batch-size <n>         Override harness batch size (default: 3)
   --max-generations <n>    Override harness archival depth (default: 10)
-  --elite-size <n>         Number of elite candidates to carry over (default: 1)
-  --exploration-generations <n> Number of initial generations for exploration (default: 3)
   --state <path>           Load/save harness state for persistent backlogs
   --emit-json <path>       Persist evaluation output as JSON
   --help                   Show this message"
