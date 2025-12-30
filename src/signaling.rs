@@ -34,28 +34,20 @@ impl SignalBus {
     #[allow(dead_code)]
     pub fn purge_from(&mut self, source_id: &str, target_id: &str) {
         self.queue.retain(|s| {
-            // Remove if source matches AND target matches (or is broadcast and we want to block?
-            // Blocking broadcast for one recipient in a shared bus is hard without cloning.
-            // But if target is explicit, we can remove it.
-            // If target is None (broadcast), we can't remove it just for one recipient here.
-            // However, the caller (MorphogeneticApp) filters broadcasts based on blacklist in `step()`.
-            // The purpose of this `purge_from` is likely to remove pending targeted signals in the queue.
-            // If we are just queueing up signals, they aren't delivered yet.
-            // When we drain, we deliver. If we drain now, we lose them.
-            // But `drain` happens in `step`. `handle_action` happens inside `step` loop?
-            // No, `handle_action` is called after collecting all actions.
-            // So `step` -> collect actions -> `handle_action` -> `purge_from`.
-            // The signals for the *next* step might already be in queue if other cells emitted them?
-            // Yes, if other cells processed before this one in the same step.
-            // Actually, `step` drains the bus at the START.
-            // So the bus is empty when `handle_action` runs, except for signals emitted by other cells in the CURRENT step
-            // that are added to the `SignalBus` for the NEXT step.
-            // So we are purging signals destined for the NEXT step.
+            // Mute signals from source_id.
+            // If the signal is explicitly targeted at target_id, we MUST drop it.
+            // If the signal is a broadcast (target is None), we also drop it for this
+            // recipient if purge_from is called in the context of a disconnection.
+            //
+            // NOTE: Since the SignalBus is shared, dropping a broadcast here affects
+            // ALL potential recipients. In a swarm quarantine scenario (consensus),
+            // this is the desired behavior (swarm-wide mute). For local disconnects,
+            // we rely on receiver-side filtering in MorphogeneticApp::step, but
+            // purge_from provides an immediate optimization for the NEXT step's queue.
 
             if let Some(src) = &s.source
                 && src == source_id
-                && let Some(tgt) = &s.target
-                && tgt == target_id
+                && (s.target.is_none() || s.target.as_deref() == Some(target_id))
             {
                 return false; // Drop
             }
