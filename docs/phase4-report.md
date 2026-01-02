@@ -44,7 +44,7 @@ Drift plots generated in `target/hostile_drift_plots/`:
 -   **`genome_drift_trends.png`**: Clearly shows the downward trend in sensitivity and upward trend in inhibitor efficiency.
 -   **`reproduction_threshold_drift.png`**: Shows the population rapidly moving towards a higher threshold to survive the background pressure.
 
-## 6. Experiment 3: External Validity (Real-World Data)
+## 5. Experiment 3: External Validity (Real-World Data)
 **Scenario:** `abilene_scenario.yaml` (Abilene Topology, 11 Nodes)  
 **Stimulus:** `UNSW-2018 IoT Botnet` Traffic Traces.
 
@@ -70,3 +70,8 @@ The validation results support the following claims:
 
 **Final State Visual:**
 The comparison plot (`abilene_comparison.png`) shows 100% defensive coverage on the Abilene topology after a simulated botnet event, with a mean of 10.2 shifts per node, indicating sustained defensive effort throughout the attack duration.
+
+## 6. Project Conclusion
+The Morphogenetic Security system successfully exhibits **Darwinian adaptation** and **structured response** to real-world adversarial traffic. When subjected to pressures that cannot be solved by simple topological isolation, the system evolves new genomic configurations and adopts defensive lineages that improve collective survival. 
+
+The successful validation against the Abilene topology and UNSW-2018 dataset proves the architectural viability of morphogenetic security for distributed IoT infrastructures.
