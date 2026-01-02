@@ -537,6 +537,10 @@ mod tests {
 
         let topology_config = TopologyConfig {
             strategy: TopologyStrategy::Graph,
+            explicit_links: Some(vec![
+                vec!["A".to_string(), "B".to_string()],
+                vec!["B".to_string(), "C".to_string()],
+            ]),
         };
 
         let telemetry = InMemorySink::default();
@@ -612,6 +616,7 @@ mod tests {
 
         let topology_config = TopologyConfig {
             strategy: TopologyStrategy::Global,
+            explicit_links: None,
         };
 
         let telemetry = InMemorySink::default();
