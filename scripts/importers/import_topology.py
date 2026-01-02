@@ -11,8 +11,10 @@ Dependencies:
 
 import sys
 import yaml
+import json
 import networkx as nx
 import argparse
+import os
 
 def main():
     if len(sys.argv) != 3:
@@ -30,11 +32,25 @@ def main():
         print(f"Error reading GraphML: {e}")
         sys.exit(1)
 
-    # Convert node labels to clean string IDs (e.g., node_0, node_1)
-    # Mapping original IDs to simulation IDs if needed, but for now we just need counts and edges.
-    # Actually, we need explicit names to map the edges correctly in the config.
-    
+    # Create mapping: old_id -> new_id
+    # We save this to a sidecar JSON file for visualization
     mapping = {old_id: f"node_{i}" for i, old_id in enumerate(G.nodes())}
+    
+    # Save mapping
+    mapping_path = output_path.replace(".yaml", "_mapping.json")
+    with open(mapping_path, 'w') as f:
+        # Invert mapping for viz lookup: node_0 -> "New York"
+        # The internal simulation uses "seed-0" for "node_0".
+        # So we want seed-0 -> "New York".
+        
+        # NOTE: Simulator Main Loop:
+        # SecurityCell::new(format!("seed-{idx}"));
+        # So node_0 corresponds to seed-0.
+        
+        viz_mapping = {f"seed-{i}": old_id for i, old_id in enumerate(G.nodes())}
+        json.dump(viz_mapping, f, indent=2)
+    print(f"[import] Saved node mapping to {mapping_path}")
+
     G = nx.relabel_nodes(G, mapping)
     
     num_nodes = G.number_of_nodes()
@@ -46,7 +62,6 @@ def main():
     edges = [[u, v] for u, v in G.edges()]
 
     # Construct the ScenarioConfig dictionary
-    # We follow the schema from src/config.rs
     config = {
         "scenario_name": f"Imported Topology: {input_path}",
         "description": "Auto-generated from Internet Topology Zoo GraphML.",
@@ -54,7 +69,6 @@ def main():
         "initial_cell_count": num_nodes,
         "topology": {
             "strategy": "Graph",
-            # We need to add support for this field in src/config.rs:
             "explicit_links": edges
         },
         "threat_profile": {
@@ -63,10 +77,9 @@ def main():
             "spike_intensity_min": 0.4,
             "spike_intensity_max": 0.8,
             "spike_duration": 5,
-            "spike_threshold": 0.8  # Updated default hardening
+            "spike_threshold": 0.8
         },
-        "cell_reproduction_rate": 0.0, # Static topology usually implies fixed hardware? Or allow growth?
-                                       # Let's default to 0.0 (static hardware) for topology imports.
+        "cell_reproduction_rate": 0.0,
         "cell_death_rate": 0.0
     }
 

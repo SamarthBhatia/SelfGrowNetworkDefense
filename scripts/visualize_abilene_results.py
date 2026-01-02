@@ -11,36 +11,10 @@ import yaml
 import json
 import networkx as nx
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import sys
 import os
 from pathlib import Path
-
-def load_topology(config_path):
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    G = nx.Graph()
-    # Explicit links
-    links = config.get('topology', {}).get('explicit_links', [])
-    for link in links:
-        G.add_edge(link[0], link[1])
-    
-    # Ensure all nodes from 0 to N-1 exist if not covered by links
-    count = config.get('initial_cell_count', 0)
-    for i in range(count):
-        node_id = f"node_{i}" # Assuming default naming convention in main.rs isn't used for explicit? 
-                              # Wait, main.rs uses `seed-{idx}`.
-                              # The explicit links in yaml use `node_X`.
-                              # We need to check how main.rs names cells.
-        # Actually, let's check main.rs: `SecurityCell::new(format!("seed-{idx}"));`
-        # BUT `config.explicit_links` uses whatever strings are in the YAML.
-        # If the YAML uses `node_0` but main creates `seed-0`, the Graph strategy in `cellular.rs` or `orchestration.rs`
-        # needs to map them.
-        # Let's check `src/main.rs` and `src/cellular.rs` logic later.
-        # For now, let's assume the naming in telemetry matches the config or we might have a disconnect.
-        pass
-
-    return G
 
 def main():
     if len(sys.argv) != 4:
@@ -52,44 +26,21 @@ def main():
     output_dir = Path(sys.argv[3])
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Load Topology
-    # Note: We need to verify node naming.
-    # The importer generated `node_X`.
-    # `main.rs` generates `seed-X`.
-    # If they don't match, the topology might not have been effectively applied or the visualization will mismatch.
-    # Let's inspect telemetry to see node IDs.
-    
-    # Pre-scan telemetry to get node IDs
-    node_ids = set()
-    lineage_map = {} # cell_id -> lineage
-    
-    with open(telemetry_path, 'r') as f:
-        for line in f:
-            if "LineageShift" in line:
-                data = json.loads(line)
-                evt = data["event"]["LineageShift"]
-                node_ids.add(evt["cell_id"])
-                lineage_map[evt["cell_id"]] = "Stem" # Default start
-            elif "CellReplicated" in line:
-                 data = json.loads(line)
-                 evt = data["event"]["CellReplicated"]
-                 node_ids.add(evt["child_id"])
-                 node_ids.add(evt["cell_id"])
+    # Load Mapping if exists
+    mapping_path = config_path.replace(".yaml", "_mapping.json")
+    label_map = {}
+    if os.path.exists(mapping_path):
+        with open(mapping_path, 'r') as f:
+            label_map = json.load(f)
+            print(f"Loaded node labels: {len(label_map)}")
 
-    print(f"Found {len(node_ids)} active nodes in telemetry: {list(node_ids)[:5]}...")
-
-    # Load static topology structure from YAML
-    # We will map `node_X` from YAML to `seed-X` from main.rs if strictly numeric correspondence exists.
-    # YAML: node_0, node_1...
-    # Main: seed-0, seed-1...
-    
+    # 1. Load Topology from Config
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
         
     G = nx.Graph()
     raw_links = config.get('topology', {}).get('explicit_links', [])
     
-    # Mapper function
     def map_id(yaml_id):
         # "node_5" -> "seed-5"
         if yaml_id.startswith("node_"):
@@ -97,19 +48,19 @@ def main():
         return yaml_id
 
     for u, v in raw_links:
-        G.add_edge(map_id(u), map_id(v))
+        u_prime = map_id(u)
+        v_prime = map_id(v)
+        G.add_edge(u_prime, v_prime)
         
-    # Layout
-    pos = nx.spring_layout(G, seed=42) # Consistent layout
+    # Apply real labels
+    if label_map:
+        # We keep G nodes as seed-X for internal logic but will use labels for drawing
+        pass
 
-    # 2. Process Telemetry and Snapshot
-    # We'll take snapshots every N steps or on significant changes
-    
-    current_step = 0
-    # Reset lineage state
-    # All nodes start as 'Stem' (Gray)
-    node_colors = {node: 'lightgray' for node in G.nodes()}
-    
+    # Layout
+    pos = nx.spring_layout(G, seed=42, k=1.5) # Consistent layout, spread out
+
+    # 2. Process Telemetry
     lineage_color_map = {
         'Stem': 'lightgray',
         'IntrusionDetection': '#ff6b6b', # Red
@@ -117,74 +68,102 @@ def main():
         'ResilientCore': '#45b7d1' # Blue
     }
     
-    snapshots = 0
+    # State tracking
+    node_states = {node: 'Stem' for node in G.nodes()}
+    node_replications = {node: 0 for node in G.nodes()}
     
-    # We want to show cumulative state
+    snapshots = []
+    
+    print(f"Processing telemetry from {telemetry_path}...")
+    
     with open(telemetry_path, 'r') as f:
         for line in f:
             try:
                 rec = json.loads(line)
             except:
                 continue
-                
+            
             evt_wrapper = rec.get("event", {})
             if not evt_wrapper: continue
             
             evt_type = list(evt_wrapper.keys())[0]
             evt_data = evt_wrapper[evt_type]
             
-            # Update step
-            # Some events don't have step directly, usually we track StepSummary or assume sequential
-            # But the recorder puts timestamp. We'll rely on StepSummary for frame boundaries?
-            # Or just update state and periodically dump.
-            
             if evt_type == "LineageShift":
                 cell_id = evt_data["cell_id"]
-                # Map child cells to root physical node (e.g., seed-3::child -> seed-3)
                 root_id = cell_id.split("::")[0]
-                
-                lineage = evt_data["lineage"]
-                
-                # Priority: IntrusionDetection > AdaptiveProbe > ResilientCore > Stem
-                current_color = node_colors.get(root_id, 'lightgray')
-                new_color = lineage_color_map.get(lineage, 'lightgray')
-                
-                # Simple latch logic: once red, stay red (to show infection/protection spread)
-                # Or just overwrite. Let's overwrite but prioritize Red.
-                if new_color == '#ff6b6b': # Red
-                     node_colors[root_id] = new_color
-                elif current_color != '#ff6b6b': # Only update if not already Red
-                     node_colors[root_id] = new_color
+                if root_id in node_states:
+                    node_states[root_id] = evt_data["lineage"]
+            
+            elif evt_type == "CellReplicated":
+                cell_id = evt_data["cell_id"]
+                root_id = cell_id.split("::")[0]
+                if root_id in node_replications:
+                    node_replications[root_id] += 1
             
             elif evt_type == "StepSummary":
                 step = evt_data["step"]
-                # Save frame every 100 steps
-                if step % 100 == 0:
-                    plt.figure(figsize=(10, 8))
-                    colors = [node_colors.get(n, 'lightgray') for n in G.nodes()]
-                    
-                    nx.draw(G, pos, 
-                            node_color=colors, 
-                            with_labels=True, 
-                            node_size=800,
-                            font_size=8,
-                            font_weight='bold')
-                            
-                    plt.title(f"Step {step}: Lineage Distribution")
-                    plt.savefig(output_dir / f"frame_{step:04d}.png")
-                    plt.close()
-                    snapshots += 1
-                    print(f"Saved frame for step {step}", end='\r')
+                # Snapshot at t=0 and t=final (or near final)
+                if step == 0:
+                    snapshots.append((0, node_states.copy(), node_replications.copy()))
+                elif step % 2000 == 0: # Or just catch the last one
+                     snapshots.append((step, node_states.copy(), node_replications.copy()))
 
-    # Final frame
-    plt.figure(figsize=(10, 8))
-    colors = [node_colors.get(n, 'lightgray') for n in G.nodes()]
-    nx.draw(G, pos, node_color=colors, with_labels=True, node_size=800)
-    plt.title(f"Final State: Lineage Distribution")
-    plt.savefig(output_dir / "frame_final.png")
-    plt.close()
+    # Add final state if not exactly on modulo
+    snapshots.append(("Final", node_states.copy(), node_replications.copy()))
     
-    print(f"\nGenerated {snapshots + 1} frames in {output_dir}")
+    # Render Comparison Plot (Start vs End)
+    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+    
+    times_to_plot = [snapshots[0], snapshots[-1]]
+    titles = ["Initial State (t=0)", f"Final State (t={times_to_plot[1][0]})"]
+    
+    for ax, (time, states, reps), title in zip(axes, times_to_plot, titles):
+        colors = [lineage_color_map.get(states[n], 'lightgray') for n in G.nodes()]
+        
+        # Labels: "Name\n(Reps: N)"
+        labels = {}
+        for n in G.nodes():
+            real_name = label_map.get(n, n)
+            labels[n] = f"{real_name}\n(Reps: {reps[n]})"
+            
+        nx.draw_networkx_nodes(G, pos, ax=ax, node_color=colors, node_size=1500, edgecolors='black')
+        nx.draw_networkx_edges(G, pos, ax=ax, width=2, alpha=0.6)
+        nx.draw_networkx_labels(G, pos, labels, ax=ax, font_size=8, font_weight='bold')
+        
+        ax.set_title(title, fontsize=14)
+        ax.axis('off')
+
+    # Legend
+    patches = [mpatches.Patch(color=c, label=l) for l, c in lineage_color_map.items()]
+    fig.legend(handles=patches, loc='lower center', ncol=4, fontsize=12)
+    
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.15)
+    
+    outfile = output_dir / "abilene_comparison.png"
+    plt.savefig(outfile, dpi=150)
+    print(f"Saved comparison plot to {outfile}")
+    
+    # Also save the "After" plot alone for detail
+    plt.figure(figsize=(10, 8))
+    time, states, reps = snapshots[-1]
+    colors = [lineage_color_map.get(states[n], 'lightgray') for n in G.nodes()]
+    labels = {n: f"{label_map.get(n, n)}\n(Reps: {reps[n]})" for n in G.nodes()}
+    
+    nx.draw_networkx_nodes(G, pos, node_color=colors, node_size=1500, edgecolors='black')
+    nx.draw_networkx_edges(G, pos, width=2, alpha=0.6)
+    nx.draw_networkx_labels(G, pos, labels, font_size=9, font_weight='bold')
+    
+    plt.title(f"Abilene Network Defense State (t={time})\nLineage Distribution & Reproduction Counts", fontsize=14)
+    plt.axis('off')
+    
+    # Add legend
+    plt.legend(handles=patches, loc='upper left')
+    
+    outfile_single = output_dir / "abilene_final_state.png"
+    plt.savefig(outfile_single, dpi=150)
+    print(f"Saved detailed final state to {outfile_single}")
 
 if __name__ == "__main__":
     main()

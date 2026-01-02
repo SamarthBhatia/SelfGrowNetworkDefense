@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key attr.name="id" attr.type="string" for="node" id="d0" />
+  <graph edgedefault="undirected">
+    <node id="Abilene_0" />
+    <node id="Abilene_1" />
+    <node id="Abilene_2" />
+    <node id="Abilene_3" />
+    <edge source="Abilene_0" target="Abilene_1" />
+    <edge source="Abilene_1" target="Abilene_2" />
+    <edge source="Abilene_2" target="Abilene_3" />
+    <edge source="Abilene_3" target="Abilene_0" />
+  </graph>
+</graphml>

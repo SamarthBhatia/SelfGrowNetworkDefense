@@ -2014,95 +2014,6 @@ mod tests {
         assert!(child.mutation.is_some());
     }
 
-    #[test]
-    fn test_tournament_selection() {
-        let stats = RunStatistics {
-            step_count: 1,
-            avg_threat: 0.1,
-            max_threat: 0.2,
-            avg_cell_count: 1.0,
-            min_cell_count: 1,
-            max_cell_count: 1,
-            total_replications: 0,
-            total_deaths: 0,
-            total_signals: 0,
-            total_lineage_shifts: 0,
-            total_stimulus: 0.0,
-            signals_by_topic: HashMap::new(),
-            lineage_by_type: HashMap::new(),
-            stimuli_by_topic: HashMap::new(),
-            avg_topology_degree: 0.0,
-            max_isolation_count: 0,
-        };
-        let outcomes: Vec<AttackOutcome> = (0..5)
-            .map(|i| AttackOutcome {
-                candidate: AttackCandidate {
-                    id: format!("cand-{}", i),
-                    scenario_ref: "s".into(),
-                    stimulus_ref: None,
-                    generation: 0,
-                    parent_id: None,
-                    mutation: None,
-                },
-                fitness_score: i as f32 * 0.1, // 0.0, 0.1, 0.2, 0.3, 0.4
-                breach_observed: false,
-                notes: None,
-                statistics: stats.clone(),
-            })
-            .collect();
-
-        let mut rng = rand::thread_rng();
-        // Tournament size equals population size -> should always select max fitness
-        let selected = tournament_selection(&outcomes, 5, &mut rng).expect("selection failed");
-        assert_eq!(selected.fitness_score, 0.4);
-
-        // Tournament size 1 -> random selection (can't assert specific fitness, but should succeed)
-        let _ = tournament_selection(&outcomes, 1, &mut rng).expect("selection failed");
-    }
-
-    #[test]
-    fn test_roulette_wheel_selection() {
-        let stats = RunStatistics {
-            step_count: 1,
-            avg_threat: 0.1,
-            max_threat: 0.2,
-            avg_cell_count: 1.0,
-            min_cell_count: 1,
-            max_cell_count: 1,
-            total_replications: 0,
-            total_deaths: 0,
-            total_signals: 0,
-            total_lineage_shifts: 0,
-            total_stimulus: 0.0,
-            signals_by_topic: HashMap::new(),
-            lineage_by_type: HashMap::new(),
-            stimuli_by_topic: HashMap::new(),
-            avg_topology_degree: 0.0,
-            max_isolation_count: 0,
-        };
-        let outcomes: Vec<AttackOutcome> = (0..2)
-            .map(|i| AttackOutcome {
-                candidate: AttackCandidate {
-                    id: format!("cand-{}", i),
-                    scenario_ref: "s".into(),
-                    stimulus_ref: None,
-                    generation: 0,
-                    parent_id: None,
-                    mutation: None,
-                },
-                fitness_score: if i == 0 { 0.1 } else { 0.9 },
-                breach_observed: false,
-                notes: None,
-                statistics: stats.clone(),
-            })
-            .collect();
-
-        let mut rng = rand::thread_rng();
-        // Just verify it returns a result and doesn't crash
-        let selected = roulette_wheel_selection(&outcomes, &mut rng).expect("selection failed");
-        assert!(selected.fitness_score > 0.0);
-    }
-
     #[derive(Serialize)]
     struct TestRow {
         step: u32,
@@ -2183,5 +2094,106 @@ mod tests {
         let steps = load_step_metrics_from_csv(reader)?;
         let stats = build_statistics_from_steps(&steps)?;
         Ok(analyze_run_statistics(stats))
+    }
+
+    #[test]
+    fn test_tournament_selection_edge_cases() {
+        let stats = RunStatistics {
+            step_count: 1,
+            avg_threat: 0.1,
+            max_threat: 0.2,
+            avg_cell_count: 1.0,
+            min_cell_count: 1,
+            max_cell_count: 1,
+            total_replications: 0,
+            total_deaths: 0,
+            total_signals: 0,
+            total_lineage_shifts: 0,
+            total_stimulus: 0.0,
+            signals_by_topic: HashMap::new(),
+            lineage_by_type: HashMap::new(),
+            stimuli_by_topic: HashMap::new(),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
+        };
+        let outcomes: Vec<AttackOutcome> = (0..3)
+            .map(|i| AttackOutcome {
+                candidate: AttackCandidate {
+                    id: format!("cand-{}", i),
+                    scenario_ref: "s".into(),
+                    stimulus_ref: None,
+                    generation: 0,
+                    parent_id: None,
+                    mutation: None,
+                },
+                fitness_score: i as f32 * 0.1,
+                breach_observed: false,
+                notes: None,
+                statistics: stats.clone(),
+            })
+            .collect();
+
+        let mut rng = rand::thread_rng();
+
+        // Size 1 should succeed
+        assert!(tournament_selection(&outcomes, 1, &mut rng).is_ok());
+
+        // Size larger than population should cap at max fitness
+        let selected = tournament_selection(&outcomes, 10, &mut rng).expect("selection failed");
+        assert_eq!(selected.fitness_score, 0.2);
+
+        // Empty population should error
+        let empty: Vec<AttackOutcome> = vec![];
+        assert!(tournament_selection(&empty, 3, &mut rng).is_err());
+
+        // Size 0 should error
+        assert!(tournament_selection(&outcomes, 0, &mut rng).is_err());
+    }
+
+    #[test]
+    fn test_roulette_wheel_selection_edge_cases() {
+        let mut rng = rand::thread_rng();
+
+        // Empty population should error
+        let empty: Vec<AttackOutcome> = vec![];
+        assert!(roulette_wheel_selection(&empty, &mut rng).is_err());
+
+        // All zero fitness should select randomly but succeed
+        let stats = RunStatistics {
+            step_count: 1,
+            avg_threat: 0.1,
+            max_threat: 0.2,
+            avg_cell_count: 1.0,
+            min_cell_count: 1,
+            max_cell_count: 1,
+            total_replications: 0,
+            total_deaths: 0,
+            total_signals: 0,
+            total_lineage_shifts: 0,
+            total_stimulus: 0.0,
+            signals_by_topic: HashMap::new(),
+            lineage_by_type: HashMap::new(),
+            stimuli_by_topic: HashMap::new(),
+            avg_topology_degree: 0.0,
+            max_isolation_count: 0,
+        };
+        let zeros: Vec<AttackOutcome> = (0..3)
+            .map(|i| AttackOutcome {
+                candidate: AttackCandidate {
+                    id: format!("cand-{}", i),
+                    scenario_ref: "s".into(),
+                    stimulus_ref: None,
+                    generation: 0,
+                    parent_id: None,
+                    mutation: None,
+                },
+                fitness_score: 0.0,
+                breach_observed: false,
+                notes: None,
+                statistics: stats.clone(),
+            })
+            .collect();
+
+        assert!(roulette_wheel_selection(&zeros, &mut rng).is_ok());
     }
 }

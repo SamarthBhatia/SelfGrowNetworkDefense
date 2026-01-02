@@ -1,7 +1,7 @@
 use morphogenetic_security::MorphogeneticApp;
 use morphogenetic_security::adversarial::{
     AdversarialHarness, AttackCandidate, EvolutionConfig, ExecutionReport, HarnessError,
-    StepMetrics,
+    MutationStrategy, SelectionStrategy, StepMetrics,
 };
 use morphogenetic_security::cellular::SecurityCell;
 use morphogenetic_security::config;
@@ -156,10 +156,37 @@ fn initialise_harness(args: &CliArgs) -> Result<AdversarialHarness, String> {
         if let Some(rate) = args.crossover_rate {
             config.crossover_rate = rate;
         }
+        if let Some(retain) = args.retain_elite {
+            config.retain_elite = retain;
+        }
+
+        if let Some(strategy) = &args.selection_strategy {
+            match strategy.to_lowercase().as_str() {
+                "tournament" => {
+                    config.selection_strategy = SelectionStrategy::Tournament { size: 3 }
+                }
+                "roulette" | "roulettewheel" => {
+                    config.selection_strategy = SelectionStrategy::RouletteWheel
+                }
+                _ => println!("[warn] Unknown selection strategy `{strategy}`; using default."),
+            }
+        }
+
+        if let Some(strategy) = &args.mutation_strategy {
+            match strategy.to_lowercase().as_str() {
+                "random" => config.mutation_strategy = MutationStrategy::Random,
+                _ => println!("[warn] Unknown mutation strategy `{strategy}`; using default."),
+            }
+        }
 
         println!(
-            "[info] Initialising new harness with batch_size={} max_generations={} crossover_rate={}",
-            config.batch_size, config.max_generations, config.crossover_rate
+            "[info] Initialising new harness with batch_size={} max_generations={} crossover_rate={} selection={:?} mutation={:?} retain_elite={}",
+            config.batch_size,
+            config.max_generations,
+            config.crossover_rate,
+            config.selection_strategy,
+            config.mutation_strategy,
+            config.retain_elite
         );
         Ok(AdversarialHarness::new(config))
     }
@@ -411,6 +438,9 @@ fn parse_args() -> Result<CliArgs, String> {
     let mut seeds: Vec<SeedCandidate> = Vec::new();
     let mut stimulus_path: Option<PathBuf> = None;
     let mut crossover_rate: Option<f32> = None;
+    let mut selection_strategy: Option<String> = None;
+    let mut mutation_strategy: Option<String> = None;
+    let mut retain_elite: Option<bool> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -476,6 +506,28 @@ fn parse_args() -> Result<CliArgs, String> {
                         .map_err(|_| "Crossover rate must be a float".to_string())?,
                 );
             }
+            "--selection-strategy" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --selection-strategy".to_string())?;
+                selection_strategy = Some(value);
+            }
+            "--mutation-strategy" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --mutation-strategy".to_string())?;
+                mutation_strategy = Some(value);
+            }
+            "--retain-elite" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "Missing value for --retain-elite".to_string())?;
+                retain_elite = Some(
+                    value
+                        .parse::<bool>()
+                        .map_err(|_| "Retain elite must be 'true' or 'false'".to_string())?,
+                );
+            }
             unknown => {
                 return Err(format!("Unknown argument `{unknown}`"));
             }
@@ -494,6 +546,9 @@ fn parse_args() -> Result<CliArgs, String> {
         seeds,
         stimulus_path,
         crossover_rate,
+        selection_strategy,
+        mutation_strategy,
+        retain_elite,
     })
 }
 
@@ -509,6 +564,9 @@ Options:
   --seed <id>=<scenario>   Enqueue a seed scenario (can repeat)
   --stimulus <path>        Stimulus schedule JSONL applied to each run
   --crossover-rate <f32>   The probability of performing crossover (0.0 to 1.0)
+  --selection-strategy <s> Selection strategy (tournament, roulette)
+  --mutation-strategy <s>  Mutation strategy (random)
+  --retain-elite <bool>    Whether to retain elite candidates (true, false)
   --help                   Show this message"
     );
 }
@@ -522,6 +580,9 @@ struct CliArgs {
     seeds: Vec<SeedCandidate>,
     stimulus_path: Option<PathBuf>,
     crossover_rate: Option<f32>,
+    selection_strategy: Option<String>,
+    mutation_strategy: Option<String>,
+    retain_elite: Option<bool>,
 }
 
 struct SeedCandidate {

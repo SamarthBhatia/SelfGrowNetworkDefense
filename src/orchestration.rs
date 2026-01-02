@@ -23,15 +23,38 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         telemetry: TSink,
         topology_config: TopologyConfig,
     ) -> Self {
-        let mut app = Self {
+        let mut neighbors = HashMap::new();
+
+        if matches!(topology_config.strategy, TopologyStrategy::Graph) {
+            if let Some(links) = &topology_config.explicit_links {
+                for link in links {
+                    if link.len() >= 2 {
+                        let u = &link[0];
+                        let v = &link[1];
+                        neighbors
+                            .entry(u.clone())
+                            .or_insert_with(Vec::new)
+                            .push(v.clone());
+                        neighbors
+                            .entry(v.clone())
+                            .or_insert_with(Vec::new)
+                            .push(u.clone());
+                    }
+                }
+            } else {
+                // Fallback: fully connected or random initialization?
+                // The original code didn't initialize explicit links, relying on dynamic formation.
+                // We keep it empty if no explicit links are provided, allowing dynamic growth.
+            }
+        }
+
+        Self {
             cells,
-            signal_bus: SignalBus::default(),
             telemetry,
             topology_config,
-            neighbors: HashMap::new(),
-        };
-        app.initialize_topology();
-        app
+            signal_bus: SignalBus::default(),
+            neighbors,
+        }
     }
 
     fn initialize_topology(&mut self) {
@@ -467,17 +490,6 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     TelemetryEvent::VoteCast {
                         cell_id,
                         target_topic: topic,
-                    },
-                );
-            }
-            CellAction::NotifyTrustUpdate(target_id, new_score) => {
-                let cell_id = self.cells[index].id.clone();
-                self.telemetry.record(
-                    SystemTime::now(),
-                    TelemetryEvent::TrustScoreUpdated {
-                        cell_id,
-                        target_id,
-                        new_score,
                     },
                 );
             }

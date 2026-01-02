@@ -300,6 +300,11 @@ fn parse_outcome(path: &Path) -> Result<OutcomeDisplay, Box<dyn Error>> {
             _ => candidate.id,
         });
 
+    let recommended_mutation = payload.recommended_mutation.map(|v| match v {
+        serde_json::Value::String(s) => s,
+        obj => format!("{}", obj),
+    });
+
     Ok(OutcomeDisplay {
         label,
         generation: payload.outcome.generation,
@@ -313,7 +318,7 @@ fn parse_outcome(path: &Path) -> Result<OutcomeDisplay, Box<dyn Error>> {
         total_stimulus: payload.statistics.total_stimulus,
         min_cell_count: payload.statistics.min_cell_count,
         max_cell_count: payload.statistics.max_cell_count,
-        recommended_mutation: payload.recommended_mutation,
+        recommended_mutation,
         next_candidate,
     })
 }
@@ -323,7 +328,7 @@ struct OutcomeFile {
     outcome: OutcomeSnapshot,
     statistics: OutcomeStats,
     #[serde(default)]
-    recommended_mutation: Option<String>,
+    recommended_mutation: Option<serde_json::Value>,
     #[serde(default)]
     next_candidate: Option<NextCandidate>,
 }
