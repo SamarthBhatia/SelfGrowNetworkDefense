@@ -57,6 +57,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
         }
     }
 
+    #[allow(dead_code)]
     fn initialize_topology(&mut self) {
         self.neighbors.clear();
         match self.topology_config.strategy {

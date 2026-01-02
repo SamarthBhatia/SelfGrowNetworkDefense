@@ -54,6 +54,7 @@ pub enum TopologyStrategy {
     Graph,  // Explicit neighbor list
 }
 
+#[allow(dead_code)]
 fn default_topology_strategy() -> TopologyStrategy {
     TopologyStrategy::Global
 }
