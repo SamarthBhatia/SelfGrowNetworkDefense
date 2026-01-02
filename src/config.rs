@@ -32,16 +32,18 @@ pub struct ThreatProfile {
     pub spike_threshold: f32,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TopologyConfig {
-    #[serde(default = "default_topology_strategy")]
     pub strategy: TopologyStrategy,
+    #[serde(default)]
+    pub explicit_links: Option<Vec<Vec<String>>>, // List of [source, target] pairs
 }
 
 impl Default for TopologyConfig {
     fn default() -> Self {
         Self {
-            strategy: default_topology_strategy(),
+            strategy: TopologyStrategy::Global,
+            explicit_links: None,
         }
     }
 }

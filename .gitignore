@@ -17,3 +17,5 @@ AGENTS.md
 .DS_Store
 .idea/
 *.swp
+._*
+iot.zip

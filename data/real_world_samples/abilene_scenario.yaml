@@ -1,0 +1,44 @@
+scenario_name: 'Imported Topology: data/real_world_samples/Abilene.graphml'
+description: Auto-generated from Internet Topology Zoo GraphML.
+simulation_steps: 2000
+initial_cell_count: 11
+topology:
+  strategy: Graph
+  explicit_links:
+  - - node_0
+    - node_1
+  - - node_0
+    - node_2
+  - - node_1
+    - node_10
+  - - node_2
+    - node_9
+  - - node_3
+    - node_4
+  - - node_3
+    - node_6
+  - - node_4
+    - node_5
+  - - node_4
+    - node_6
+  - - node_5
+    - node_8
+  - - node_6
+    - node_7
+  - - node_7
+    - node_8
+  - - node_7
+    - node_10
+  - - node_8
+    - node_9
+  - - node_9
+    - node_10
+threat_profile:
+  background_threat_level: 0.1
+  spike_probability: 0.05
+  spike_intensity_min: 0.4
+  spike_intensity_max: 0.8
+  spike_duration: 5
+  spike_threshold: 0.8
+cell_reproduction_rate: 0.0
+cell_death_rate: 0.0
