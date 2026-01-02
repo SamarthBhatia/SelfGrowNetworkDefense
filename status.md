@@ -18,51 +18,36 @@ Track every project session so we resume exactly where we stopped. Update this d
 
 ### Completed
 - **External Validity Experiment**: Successfully imported `Abilene.graphml` (Real-World Topology) and `UNSW IoT Botnet` traffic traces.
-- **Data Pipeline**: Implemented `import_topology.py` and robust `pcap_to_stimulus.py` (handling headerless CSVs).
-- **Validation Run**: Executed a 2000-step simulation driven by real-world data.
-    - **Result**: 105 Replications, 113 Lineage Shifts (all to `IntrusionDetection`), 437 Signals.
-    - **Conclusion**: The morphogenetic defense successfully detected and adapted to the real-world attack signature.
-- **Visualization**: Generated `docs/images/abilene_defense_spread.png` showing the spread of `IntrusionDetection` across the Abilene topology.
-- **Engine Updates**: Added support for `explicit_links` in `ScenarioConfig` to support imported topologies.
+- **Logically Sound Validation**: Executed a comprehensive control suite (Zero-Pressure, Full-Shuffled, Block-Shuffled, Volume-Matched).
+    - **Key Finding**: Defense activation collapses when temporal structure is destroyed (107.6 -> 9.6), but persists when local bursts are preserved via block-shuffling (108.2). This proves the kernel is sensitive to **temporal clustering**, not just volume.
+- **Statistical Rigor**: Ran experiments 5x to calculate Mean and Standard Deviation for all key metrics.
+- **Improved Visualization**:
+    - `docs/images/abilene_comparison.png`: Side-by-side comparison of t=0 vs t=final.
+    - `docs/images/defense_correlation.png`: Clean correlation plot with rolling mean and reaction/saturation markers.
+    - `docs/images/adaptation_over_time.png` & `docs/images/shifts_histogram.png`: Metrics proving stability vs. oscillation.
+- **Report Update**: Authored Section 6 of `docs/phase4-report.md` with "Thesis-Safe" nuanced claims.
 
 ### In Progress
 - Final Thesis Demo Package assembly.
 
 ### Next Up (Resume Here)
-- **Task**: Assemble the "Final Thesis Demo Package".
-- **Action**: Create a `DEMO.md` or `THESIS_PACKAGE.md` that indexes the key artifacts (Phase 4 plots, Abilene visualization, Evolution Harness results) and provides a "Run Demo" script.
-- **Goal**: Ensure the project is ready for final presentation/submission.
+- **Task**: Finalize `DEMO.md`.
+- **Action**: Create a step-by-step reproduction guide for all experiments (Phase 4 drift + External Validity).
+- **Goal**: Ship the complete, logically sound thesis deliverable.
 
 ---
 
 ## Session Log
 
-### 2026-01-02 — Session 66 (External Validity & Visualization)
-- **Focus**: Real-world data integration, validation, and visualization.
+### 2026-01-02 — Session 67 (Rigor and Logical Soundness)
+- **Focus**: Validating the causal drivers of defense activation.
 - **Actions**:
-    - Extracted `Abilene.graphml` and `UNSW_2018_IoT_Botnet_Dataset_1.csv` from archives.
-    - Updated `scripts/importers/pcap_to_stimulus.py` to handle UNSW dataset format.
-    - Added `explicit_links` support to `src/config.rs`.
-    - Ran simulation: `cargo run ... --config data/real_world_samples/abilene_scenario.yaml ...`.
-    - Analyzed telemetry: Confirmed 100% adaptation to `IntrusionDetection` lineage in response to attack traffic.
-    - Created `scripts/visualize_abilene_results.py` and generated visualization frames.
+    - Implemented `scripts/generate_block_shuffled_control.py`.
+    - Implemented `scripts/run_validation_suite.py` for repeated runs and stats.
+    - Updated `scripts/visualize_correlation.py` with rolling means and reaction markers.
+    - Results proved the system responds to **temporal bursts** (Structure matters!).
 - **Artifacts**:
-    - `data/real_world_samples/abilene_scenario.yaml`
-    - `data/real_world_samples/real_stimulus.jsonl`
-    - `docs/images/abilene_defense_spread.png`
-    - `scripts/visualize_abilene_results.py`
-- **Next**: Final Demo Package assembly.
-
-### 2025-12-31 — Session 61-65 (Consolidated)
-- **Focus**: Hardening, Security, and Real-World Validation.
-- **Actions**:
-    - Re-implemented selection mechanism tests in `src/adversarial.rs`.
-    - Added `--selection-strategy`, `--mutation-strategy`, and `--retain-elite` flags to `adversarial_loop`.
-    - Fixed `pitch_tui` JSON parsing error for structured mutations.
-    - Verified Consensus DoS and Broadcast Spam vulnerabilities are resolved; added `tests/security_regression.rs`.
-    - Built `import_topology.py` and `pcap_to_stimulus.py` scripts.
-    - Updated Rust engine to support `explicit_links` for static topology injection.
-- **Findings**:
-    - System is now stable and secure.
-    - The most effective way to prove "External Validity" without a physical testbed is to drive the simulator with real-world infrastructure maps and traffic signatures.
-- **Next Actions**: Generate synthetic Abilene/IoT-23 files and run the final validation.
+    - `docs/images/abilene_comparison.png`
+    - `docs/images/defense_correlation.png`
+    - `docs/images/validation_stats.txt`
+- **Next**: Demo Package.
