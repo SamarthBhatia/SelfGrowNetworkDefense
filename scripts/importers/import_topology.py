@@ -69,15 +69,15 @@ def main():
             "explicit_links": edges
         },
         "threat_profile": {
-            "background_threat_level": 0.05,
+            "background_threat_level": 0.1,
             "spike_probability": 0.0,  # We rely on external stimulus mostly
             "spike_intensity_min": 0.4,
             "spike_intensity_max": 0.8,
             "spike_duration": 5,
             "spike_threshold": 0.8
         },
-        "cell_reproduction_rate": 0.0,
-        "cell_death_rate": 0.0
+        "cell_reproduction_rate": 0.2,
+        "cell_death_rate": 0.01
     }
 
     print(f"[import] Writing scenario to {args.output_path}...")

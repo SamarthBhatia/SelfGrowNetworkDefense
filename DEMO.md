@@ -67,4 +67,33 @@ python3 scripts/analyze_stability.py data/real_world_samples/validation_telemetr
 ## 5. Key Findings
 1.  **Temporal Intelligence**: The system ignores unstructured noise (Full-Shuffled) but reacts to coordinated bursts (Block-Shuffled).
 2.  **Homeostasis**: The system is perfectly stable at rest (Zero-Pressure).
-3.  **Hypersensitivity**: Current limitation—amplified benign traffic triggers defense, motivating future work in baseline normalization.
+3. **Hypersensitivity**: Current limitation—amplified benign traffic triggers defense, motivating future work in baseline normalization.
+
+## 6. Realism Expansion Matrix (Tier 1 Validity)
+To prove the architecture's generality beyond a single topology, we run a "Realism Matrix" crossing multiple topologies with diverse datasets.
+
+### Supported Topologies
+- **Abilene** (11 Nodes, US Research Backbone)
+- **Geant2012** (40 Nodes, Pan-European Research Network)
+
+### Supported Datasets
+- **UNSW-NB15 / IoT Botnet** (Packet-level PCAP)
+- **CICIoT2023** (Flow-based CSV, timestamps synthesized)
+
+### Running the Matrix
+This script downloads necessary topologies, imports traffic logs, and runs the full cross-product simulation (Topology x Dataset).
+
+```bash
+# Downloads Geant2012 and Abilene
+bash scripts/download_topologies.sh
+
+# Links or places CICIoT2023 CSVs in data/external/traffic/
+# (Assuming you have sample CSVs linked)
+
+# Runs the suite
+python3 scripts/run_realism_suite.py
+```
+
+**Output:**
+- Matrix CSV: `target/realism_results/matrix_results.csv`
+- Demonstrates consistent defense activation (saturation) across 40-node and 11-node networks under massive botnet pressure.

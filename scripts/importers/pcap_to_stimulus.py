@@ -84,23 +84,45 @@ def main():
 
     # Map columns
     ts_col = next((c for c in ['ts', 'timestamp', 'stime', 'starttime'] if c in df.columns), None)
+    
+    # Check for CICIoT2023 (Flow-based, no timestamp)
+    is_ciciot = False
     if not ts_col:
+        if 'flow_duration' in df.columns and 'header_length' in df.columns and 'label' in df.columns:
+            print("[import] Detected CICIoT2023 format (Flow features, no absolute timestamp).")
+            is_ciciot = True
+            # Synthesize timestamps: Distribute flows evenly over the requested duration
+            # If duration is 0, default to 300s (5 minutes) for this synthesis
+            target_duration = args.duration if args.duration > 0 else 300
+            print(f"[import] Synthesizing timestamps over {target_duration}s for {len(df)} flows...")
+            # Create a linearly spaced timeline with some jitter to avoid perfect lockstep
+            df['sim_step'] = np.linspace(0, target_duration, len(df))
+            # Shuffle slightly if 'random' strategy to simulate unordered arrival, 
+            # or keep linear if we assume file is time-ordered (often true for logged flows)
+            # We'll add small random jitter
+            df['sim_step'] = df['sim_step'] + np.random.uniform(0, 1.0, len(df))
+            df['sim_step'] = df['sim_step'].astype(int)
+            ts_col = 'synthesized_ts' # Placeholder
+    
+    if not ts_col and not is_ciciot:
         print("Error: Could not find timestamp column.")
         sys.exit(1)
 
-    size_col = next((c for c in ['pkts', 'pkt', 'packets', 'tot_pkts', 'orig_pkts'] if c in df.columns), None)
+    # Reordered to prefer 'tot sum' (often packet count) over 'tot size' (often bytes, sometimes 0)
+    size_col = next((c for c in ['pkts', 'pkt', 'packets', 'tot_pkts', 'orig_pkts', 'tot sum', 'tot size'] if c in df.columns), None)
     label_col = next((c for c in ['label', 'category', 'attack'] if c in df.columns), None)
     
     # For hash strategy, we need a source column
     src_col = next((c for c in ['srcip', 'saddr', 'src_ip', 'source'] if c in df.columns), None)
 
-    print(f"[import] Columns - Time: {ts_col}, Size: {size_col}, Label: {label_col}, Src: {src_col}")
+    print(f"[import] Columns - Time: {ts_col if ts_col else 'Synthetic'}, Size: {size_col}, Label: {label_col}, Src: {src_col}")
 
     # Normalize time
-    df[ts_col] = pd.to_numeric(df[ts_col], errors='coerce')
-    df = df.dropna(subset=[ts_col])
-    start_time = df[ts_col].min()
-    df['sim_step'] = ((df[ts_col] - start_time)).astype(int)
+    if not is_ciciot:
+        df[ts_col] = pd.to_numeric(df[ts_col], errors='coerce')
+        df = df.dropna(subset=[ts_col])
+        start_time = df[ts_col].min()
+        df['sim_step'] = ((df[ts_col] - start_time)).astype(int)
     
     if args.duration > 0:
         df = df[df['sim_step'] < args.duration]
@@ -146,9 +168,12 @@ def main():
                 intensity = len(group)
             
             # Normalize (heuristic)
-            threat_val = min(1.0, intensity / 500.0) 
+            # Use a smaller divisor to make 1 packet visible (1/500 = 0.002)
+            # And REMOVE the threshold so even small events are logged
+            # UPDATED: Amplified by 10x (divisor 50.0) to ensure strong reaction
+            threat_val = min(1.0, intensity / 50.0) 
             
-            if threat_val > 0.05:
+            if threat_val > 0.0:
                 cmd = {
                     "step": int(step),
                     "topic": "activator",

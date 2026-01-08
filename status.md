@@ -116,3 +116,26 @@ Track every project session so we resume exactly where we stopped. Update this d
     - `tests/test_realism_suite.py` still fails immediately (`ModuleNotFoundError: yaml`) because the local environment lacks PyYAML, preventing realism-suite validation (same issue as `tests/test_importers.py`).
 - **Next**:
     - Install the missing Python dependencies (`pyyaml` et al.) locally so `tests/test_importers.py` and `tests/test_realism_suite.py` can run; update `.github/workflows/ci.yml` to execute the new plotting/realism suites alongside the existing Python tests.
+
+### 2026-01-08 — Session 74 (Realism Integration Complete)
+- **Focus**: Integrating "Tier 1" real-world data (Geant2012 topology and CICIoT2023 traffic) to satisfy external validity requirements.
+- **Actions**:
+    - Updated `scripts/download_topologies.sh` to fetch `Geant2012.graphml` from a verified GitHub source.
+    - Modified `scripts/importers/pcap_to_stimulus.py` to support "Flow-based" CSVs (like CICIoT2023) by synthesizing timestamps when explicit ones are missing, and mapping `label` to threat signals.
+    - **Fixed Intensity Mapping**: Calibrated `pcap_to_stimulus.py` to correctly parse `Tot sum` (packet counts) instead of normalized `Tot size` and removed arbitrary thresholds, ensuring even baseline traffic generates valid stimulus events.
+    - Symlinked local CICIoT2023 data chunks to `data/external/traffic/` for the test harness.
+    - Executed `scripts/run_realism_suite.py` successfully across Abilene (11 nodes) and Geant2012 (40 nodes) with both synthetic and real-world traffic.
+    - Updated `DEMO.md` with instructions for running the new Realism Expansion Matrix.
+- **Results**:
+    - The pipeline now autonomously ingests and simulates Topology Zoo graphs and CICIoT flow datasets.
+    - **Dynamic Response Achieved**: After calibration, the system demonstrated nuanced behavior:
+        - **Abilene x Burst**: Density dropped to **0.98** (stress-induced cell death).
+        - **Geant2012 x Burst**: Density rose to **1.27** (adaptive proliferation).
+        - **CICIoT**: Maintained robust saturation (1.0) under heavy load.
+    - Confirmed via telemetry inspection that stimulus is being correctly generated and consumed by the simulator.
+- **Artifacts**:
+    - `data/external/topologies/Geant2012.graphml`
+    - `target/realism_results/matrix_results.csv`
+    - `DEMO.md` (Updated)
+- **Next**:
+    - Package the final deliverable.

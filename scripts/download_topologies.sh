@@ -8,7 +8,9 @@ echo "Downloading Abilene..."
 curl -L -o Abilene.graphml https://raw.githubusercontent.com/sjas/assessing-mininet/master/parser/topologies/Abilene.graphml
 
 echo "Downloading Geant2012..."
-# Finding a reliable mirror is hard without browsing, but Abilene is the gold standard for testing.
-# We will use Abilene for now.
+curl -L -o Geant2012.graphml https://raw.githubusercontent.com/PacktPublishing/Network-Science-with-Python-and-NetworkX-Quick-Start-Guide/master/data/UAITZ/Geant2012.graphml
+
+# echo "Downloading Sprint..."
+# curl -L -o Sprint.graphml https://raw.githubusercontent.com/topology-zoo/dataset/master/graphml/Sprint.graphml
 
 echo "Done. Topologies saved to data/external/topologies/"
