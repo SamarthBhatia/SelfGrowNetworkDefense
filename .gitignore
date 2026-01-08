@@ -20,3 +20,9 @@ AGENTS.md
 ._*
 iot.zip
 GEMINI.md
+
+# Large data files
+iot.zip
+data/external/archive.zip
+data/external/wataiData/csv/
+data/external/wataiData/*.pdf

@@ -725,4 +725,143 @@ mod tests {
             other => panic!("Expected isolation of traitor, got {other:?}"),
         }
     }
+
+    #[test]
+    fn test_trust_pruning() {
+        let mut cell = SecurityCell::new("pruner");
+        cell.state
+            .neighbor_trust
+            .insert("old_neighbor".to_string(), 0.9);
+        cell.state
+            .neighbor_trust
+            .insert("current_neighbor".to_string(), 0.9);
+
+        let env = CellEnvironment {
+            step: 10,
+            local_threat_score: 0.0,
+            neighbor_signals: Vec::new(),
+            detected_neighbors: vec!["current_neighbor".to_string()],
+        };
+
+        cell.tick(&env);
+
+        assert!(cell.state.neighbor_trust.contains_key("current_neighbor"));
+        assert!(!cell.state.neighbor_trust.contains_key("old_neighbor"));
+    }
+
+    #[test]
+    fn test_replication_limits() {
+        let mut cell = SecurityCell::new("replicator");
+        cell.genome.reproduction_threshold = 0.5;
+        cell.genome.reproduction_energy_min = 0.8;
+        cell.genome.reproduction_energy_cost = 0.3;
+        // Avoid falling through to EmitSignal
+        cell.genome.signal_emission_threshold = 1.0;
+
+        // Case 1: High threat, but low energy -> No replication
+        cell.state.energy = 0.7;
+        let action = cell.tick(&env_with_threat(0.6));
+        assert!(matches!(action, CellAction::Idle));
+
+        // Case 2: High threat, high energy -> Replication
+        cell.state.energy = 0.9;
+        let action = cell.tick(&env_with_threat(0.6));
+        assert!(matches!(action, CellAction::Replicate(_)));
+        // Energy check (0.9 + 0.15 recharge - 0.6*0.15 drain - 0.3 cost) approx 0.66
+        // Actual calculation in tick happens before cost deduction for next state, but cost is deducted IN tick
+        // tick logic:
+        // energy update: energy = (0.9 + 0.15 - 0.6*0.15) = 0.96
+        // check: 0.96 >= 0.8? Yes.
+        // deduct cost: 0.96 - 0.3 = 0.66
+        assert!(
+            (cell.state.energy - 0.66).abs() < 0.01,
+            "Energy was {}",
+            cell.state.energy
+        );
+    }
+}
+
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn test_energy_and_stress_bounds(
+            initial_energy in 0.0f32..1.5f32,
+            initial_stress in 0.0f32..1.0f32,
+            local_threat in 0.0f32..2.0f32,
+            activator in 0.0f32..2.0f32,
+            inhibitor in 0.0f32..2.0f32,
+        ) {
+            let mut cell = SecurityCell::new("prop_cell");
+            cell.state.energy = initial_energy;
+            cell.state.stress_level = initial_stress;
+
+            let signals = vec![
+                Signal { topic: "activator".to_string(), value: activator, source: None, target: None, attestation: None },
+                Signal { topic: "inhibitor".to_string(), value: inhibitor, source: None, target: None, attestation: None },
+            ];
+
+            let env = CellEnvironment {
+                step: 0,
+                local_threat_score: local_threat,
+                neighbor_signals: signals,
+                detected_neighbors: Vec::new(),
+            };
+
+            cell.tick(&env);
+
+            prop_assert!(cell.state.energy >= 0.0);
+            prop_assert!(cell.state.energy <= 1.5);
+            prop_assert!(cell.state.stress_level >= 0.0);
+            prop_assert!(cell.state.stress_level <= 1.0);
+        }
+
+        #[test]
+        fn test_consensus_never_bypasses_attestation(
+            consensus_val in 0.0f32..5.0f32,
+            fake_source_id in "[a-z0-9]{4}",
+            target_id in "[a-z0-9]{4}",
+        ) {
+            let mut cell = SecurityCell::new("voter");
+            // Set trust low so we don't accidentally process it as a friend
+            cell.genome.min_trust_threshold = 0.9;
+            cell.genome.trust_reward = 0.0;
+
+            // Signal claiming consensus but with NO attestation
+            let signals = vec![Signal {
+                topic: "consensus:activator".to_string(),
+                value: consensus_val,
+                source: Some(fake_source_id.clone()),
+                target: Some(target_id.clone()),
+                attestation: None, // Critical: Missing attestation
+            }];
+
+            let env = CellEnvironment {
+                step: 10,
+                local_threat_score: 0.0,
+                neighbor_signals: signals,
+                detected_neighbors: vec![fake_source_id.clone()],
+            };
+
+            let action = cell.tick(&env);
+
+            // It should NOT disconnect based on "Coordinated Quarantine" because the vote should be ignored/zeroed
+            // It might disconnect due to "Trust-based Isolation" if trust drops, or Idle.
+            // But specifically, the vote count in 'accused_votes' should be 0 for the target.
+            // We can't inspect internal variables easily, but we can verify behavior.
+            // If the vote was counted (val > 1.5), it would Disconnect(target).
+            // So if consensus_val > 1.5, we assert action != Disconnect(target).
+
+            if consensus_val > 1.5 {
+                 if let CellAction::Disconnect(target) = action {
+                     // If it disconnects from the TARGET, that means it accepted the vote.
+                     prop_assert_ne!(target, target_id, "Accepted unauthenticated consensus vote!");
+                     // It IS allowed to disconnect from the SOURCE (fake_source_id) due to penalty.
+                 }
+            }
+        }
+    }
 }

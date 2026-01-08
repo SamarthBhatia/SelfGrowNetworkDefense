@@ -349,4 +349,72 @@ spikes:
         scenario_config.apply_mutation(&mutation_oob);
         assert_eq!(scenario_config.spikes[0].duration, 10);
     }
+
+    #[test]
+    fn test_explicit_link_cycles() {
+        let yaml = r#"
+topology:
+  strategy: Graph
+  explicit_links:
+    - ["A", "B"]
+    - ["B", "C"]
+    - ["C", "A"]
+"#;
+        let config = load_from_reader(yaml.as_bytes()).expect("config should parse");
+        if let Some(links) = config.topology.explicit_links {
+            assert_eq!(links.len(), 3);
+            assert_eq!(links[0], vec!["A", "B"]);
+            assert_eq!(links[2], vec!["C", "A"]);
+        } else {
+            panic!("Expected explicit links");
+        }
+    }
+
+    #[test]
+    fn test_topology_switching() {
+        // Default is Global
+        let config_default = ScenarioConfig::default();
+        assert_eq!(config_default.topology.strategy, TopologyStrategy::Global);
+
+        // Switch to Graph
+        let yaml = "topology:\n  strategy: Graph\n";
+        let config_graph = load_from_reader(yaml.as_bytes()).expect("parse graph strategy");
+        assert_eq!(config_graph.topology.strategy, TopologyStrategy::Graph);
+    }
+
+    #[test]
+    fn test_spike_overlap() {
+        let mut config = ScenarioConfig::default();
+        config.threat_profile.background_threat = 0.1;
+        config.spikes = vec![
+            ThreatSpike { step: 5, intensity: 0.2, duration: 5 },  // 5-9
+            ThreatSpike { step: 7, intensity: 0.3, duration: 2 },  // 7-8
+        ];
+
+        // Step 4: Base only
+        assert!((config.threat_level_for_step(4) - 0.1).abs() < f32::EPSILON);
+        // Step 5: Base + Spike 1
+        assert!((config.threat_level_for_step(5) - 0.3).abs() < f32::EPSILON);
+        // Step 7: Base + Spike 1 + Spike 2
+        assert!((config.threat_level_for_step(7) - 0.6).abs() < f32::EPSILON);
+        // Step 9: Base + Spike 1
+        assert!((config.threat_level_for_step(9) - 0.3).abs() < f32::EPSILON);
+        // Step 10: Base only
+        assert!((config.threat_level_for_step(10) - 0.1).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_schema_drift() {
+        // Extra unknown fields should be ignored
+        let yaml = r#"
+scenario_name: drift-test
+unknown_field: 123
+threat_profile:
+  background_threat: 0.1
+  deprecated_field: "ignore me"
+"#;
+        let config = load_from_reader(yaml.as_bytes()).expect("should handle unknown fields");
+        assert_eq!(config.scenario_name, "drift-test");
+        assert_eq!(config.threat_profile.background_threat, 0.1);
+    }
 }

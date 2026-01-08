@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 # Paths
-BIN = "target/release/morphogenetic-security"
+BIN = os.environ.get("VALIDATION_BIN", "target/release/morphogenetic-security")
 CONFIG = "data/real_world_samples/abilene_scenario.yaml"
 STIM_DIR = "data/real_world_samples/controls"
 TELEMETRY_DIR = "data/real_world_samples/stats_runs"
@@ -26,7 +26,7 @@ EXPERIMENTS = {
     "Volume-Matched": "data/real_world_samples/controls/volume_matched_stimulus.jsonl"
 }
 
-NUM_RUNS = 5 # Reduced from 20 for time efficiency during demo setup, can be increased
+NUM_RUNS = int(os.environ.get("VALIDATION_RUNS", 5)) # Reduced from 20 for time efficiency during demo setup, can be increased
 
 def run_sim(stimulus, telemetry):
     cmd = [BIN, "--config", CONFIG, "--stimulus", stimulus, "--telemetry", telemetry]

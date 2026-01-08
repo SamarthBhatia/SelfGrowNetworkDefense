@@ -110,7 +110,8 @@ struct RuntimeContext {
 }
 
 fn resolve_runtime() -> RuntimeContext {
-    match parse_cli() {
+    let args = env::args().skip(1);
+    match parse_cli(args) {
         Ok(context) => context,
         Err(err) => {
             eprintln!("{err}");
@@ -119,8 +120,10 @@ fn resolve_runtime() -> RuntimeContext {
     }
 }
 
-fn parse_cli() -> Result<RuntimeContext, String> {
-    let mut args = env::args().skip(1);
+fn parse_cli<I>(mut args: I) -> Result<RuntimeContext, String> 
+where
+    I: Iterator<Item = String>,
+{
     let mut config_path: Option<PathBuf> = None;
     let mut telemetry_path: Option<PathBuf> = None;
     let mut stimulus_path: Option<PathBuf> = None;
@@ -169,4 +172,40 @@ fn parse_cli() -> Result<RuntimeContext, String> {
         telemetry_path,
         stimulus_path,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_cli_defaults() {
+        let args: Vec<String> = vec![];
+        let context = parse_cli(args.into_iter()).expect("parse success");
+        assert_eq!(context.config.scenario_name, "baseline"); // Default
+        assert!(context.telemetry_path.is_none());
+    }
+
+    #[test]
+    fn test_parse_cli_flags() {
+        let args: Vec<String> = vec![
+            "--telemetry".into(), "out.jsonl".into(),
+            "--stimulus".into(), "stim.jsonl".into()
+        ];
+        let context = parse_cli(args.into_iter()).expect("parse success");
+        assert_eq!(context.telemetry_path.unwrap().to_str().unwrap(), "out.jsonl");
+        assert_eq!(context.stimulus_path.unwrap().to_str().unwrap(), "stim.jsonl");
+    }
+
+    #[test]
+    fn test_unknown_flag() {
+        let args: Vec<String> = vec!["--bad".into()];
+        assert!(parse_cli(args.into_iter()).is_err());
+    }
+
+    #[test]
+    fn test_missing_value() {
+        let args: Vec<String> = vec!["--config".into()];
+        assert!(parse_cli(args.into_iter()).is_err());
+    }
 }

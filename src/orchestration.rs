@@ -189,7 +189,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                     for signal in signals.iter().filter(|s| s.source.is_some()) {
                         let source_id = signal.source.as_ref().unwrap();
                         if !cell.state.blacklist.contains(source_id)
-                            && signal.target.as_ref().is_none_or(|t| t == &cell.id)
+                            && (signal.topic.starts_with("consensus:") || signal.target.as_ref().is_none_or(|t| t == &cell.id))
                         {
                             cell_signals.push(signal.clone());
                         }
@@ -204,7 +204,7 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                             }
                             if let Some(neighbor_signals) = signals_by_source.get(neighbor_id) {
                                 for signal in neighbor_signals {
-                                    if signal.target.as_ref().is_none_or(|t| t == &cell.id) {
+                                    if signal.topic.starts_with("consensus:") || signal.target.as_ref().is_none_or(|t| t == &cell.id) {
                                         cell_signals.push((*signal).clone());
                                     }
                                 }
@@ -652,5 +652,100 @@ mod tests {
 
         assert!(b_emitted, "Cell B should have received global signal");
         assert!(c_emitted, "Cell C should have received global signal");
+    }
+
+    #[test]
+    fn test_blacklist_behavior() {
+        // Setup: A -> B. A is blacklisted by B.
+        let mut cell_a = SecurityCell::new("A");
+        let mut cell_b = SecurityCell::new("B");
+        cell_b.genome.signal_emission_threshold = 0.4;
+        cell_b.state.blacklist.push("A".to_string());
+
+        let cells = vec![cell_a, cell_b];
+        let topology = TopologyConfig {
+            strategy: TopologyStrategy::Graph,
+            explicit_links: Some(vec![vec!["A".into(), "B".into()]]),
+        };
+        let mut app = MorphogeneticApp::new(cells, InMemorySink::default(), topology);
+
+        // A emits signal
+        app.inject_signal(Signal {
+            topic: "activator".into(),
+            value: 0.9,
+            source: Some("A".into()),
+            target: None,
+            attestation: None,
+        });
+
+        app.step(0, 0.0);
+
+        // B should NOT have emitted signal because it ignored A
+        let events = app.telemetry().events();
+        let b_emitted = events.iter().any(|e| matches!(&e.event, TelemetryEvent::SignalEmitted { cell_id, .. } if cell_id == "B"));
+        assert!(!b_emitted, "B should ignore signal from blacklisted A");
+    }
+
+    #[test]
+    fn test_dead_cell_pruning_and_telemetry() {
+        let cell_a = SecurityCell::new("A");
+        let cell_b = SecurityCell::new("B");
+        let cells = vec![cell_a, cell_b];
+        let topology = TopologyConfig {
+            strategy: TopologyStrategy::Graph,
+            explicit_links: Some(vec![vec!["A".into(), "B".into()]]),
+        };
+        let mut app = MorphogeneticApp::new(cells, InMemorySink::default(), topology);
+
+        // Kill A manually
+        app.cells[0].state.dead = true;
+
+        app.step(0, 0.0);
+
+        // Verify A is gone
+        assert_eq!(app.cells.len(), 1);
+        assert_eq!(app.cells[0].id, "B");
+
+        // Verify neighbor maps updated
+        assert!(app.neighbors.get("A").is_none());
+        let b_neighbors = app.neighbors.get("B").unwrap();
+        assert!(b_neighbors.is_empty());
+
+        // Verify telemetry
+        let events = app.telemetry().events();
+        let link_removed = events.iter().any(|e| matches!(&e.event, TelemetryEvent::LinkRemoved { source, target } 
+            if (source == "A" && target == "B") || (source == "B" && target == "A")));
+        assert!(link_removed, "LinkRemoved event should be recorded");
+        
+        let cell_died = events.iter().any(|e| matches!(&e.event, TelemetryEvent::CellDied { cell_id } if cell_id == "A"));
+        // CellDied is recorded during handle_action only if Die action returned?
+        // Ah, step() loop: "Remove dead cells". But TelemetryEvent::CellDied is recorded in handle_action(CellAction::Die).
+        // If I manually set .state.dead = true, handle_action isn't called for Die action.
+        // Wait, step() loop does:
+        // actions.push((index, action)); ... then handle_action.
+        // Then "Remove dead cells".
+        // If I manually set dead=true BEFORE step, A might still tick?
+        // step() iterates `self.cells.iter_mut()`.
+        // A is dead. Does tick() handle dead cells?
+        // `SecurityCell::tick`: if self.state.energy <= 0.01 -> return CellAction::Die.
+        // It doesn't check `dead` flag explicitly at start of tick.
+        // But logic: `if self.state.energy <= 0.01 { return CellAction::Die; }`
+        
+        // So manually setting dead=true might not trigger CellAction::Die unless energy is low.
+        // But the pruning logic uses `c.state.dead`.
+        // So the cell IS pruned.
+        // But TelemetryEvent::CellDied might NOT be emitted if the cell didn't return Die action.
+        
+        // This is a subtle behavior. If cell dies "naturally" (energy low), it emits action -> recorded.
+        // If cell is killed externally (manually in test), it might not be recorded as event unless we do it.
+        // But the pruning happens regardless.
+        // The prompt asks to "Guarantee dead cells are pruned".
+        // And "Ensure link add/remove telemetry fires".
+        
+        // The LinkRemoved events happen in the pruning block:
+        // `self.telemetry.record(..., LinkRemoved ...)`
+        // So LinkRemoved IS verified above.
+        
+        // I won't assert CellDied here because I bypassed the natural death mechanism.
     }
 }

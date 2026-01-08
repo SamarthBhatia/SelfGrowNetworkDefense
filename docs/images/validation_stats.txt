@@ -1,0 +1,6 @@
+    Experiment  Mean Shifts  Std Shifts  Mean Reps  Std Reps
+        Attack        108.0         0.0      100.0       0.0
+ Zero-Pressure          0.0         0.0        0.0       0.0
+ Full-Shuffled         13.0         0.0      136.0       0.0
+Block-Shuffled        104.0         0.0       94.0       0.0
+Volume-Matched        174.0         0.0      169.0       0.0
