@@ -37,6 +37,8 @@ jobs:
         run: |
           python3 tests/test_importers.py
           python3 tests/test_analytics.py
+          python3 tests/test_plotting_scripts.py
+          python3 tests/test_realism_suite.py
           # Need to build debug binary for validation suite test
           cargo build --bin morphogenetic-security
           python3 tests/test_validation_suite.py
