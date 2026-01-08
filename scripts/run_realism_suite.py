@@ -15,6 +15,7 @@ import subprocess
 import json
 import yaml
 import shutil
+import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -101,7 +102,7 @@ def main():
         
         # 1. Import Topology
         scenario_file = OUTPUT_DIR / f"{topo_name}_scenario.yaml"
-        cmd = f"python3 scripts/importers/import_topology.py '{topo}' '{scenario_file}' --duration 300"
+        cmd = f"{sys.executable} scripts/importers/import_topology.py '{topo}' '{scenario_file}' --duration 300"
         if not run_command(cmd):
             continue
             
@@ -114,7 +115,7 @@ def main():
             
             # Only generate if not exists or force (optimization)
             if not stimulus_file.exists():
-                cmd = (f"python3 scripts/importers/pcap_to_stimulus.py '{dataset}' '{stimulus_file}' "
+                cmd = (f"{sys.executable} scripts/importers/pcap_to_stimulus.py '{dataset}' '{stimulus_file}' "
                        f"--nodes {node_count} --strategy hash --duration 300")
                 if not run_command(cmd):
                     print("    Failed to convert stimulus.")

@@ -5,6 +5,7 @@ import subprocess
 import json
 import yaml
 import shutil
+import sys
 
 class TestImporters(unittest.TestCase):
     def setUp(self):
@@ -24,7 +25,7 @@ class TestImporters(unittest.TestCase):
             f.write("1001,600,Attack,192.168.1.2\n") # High intensity
             
         cmd = [
-            "python3",
+            sys.executable,
             os.path.join(self.root_dir, "scripts/importers/pcap_to_stimulus.py"),
             csv_path,
             output_path,
@@ -62,7 +63,7 @@ class TestImporters(unittest.TestCase):
             f.write(content)
             
         cmd = [
-            "python3",
+            sys.executable,
             os.path.join(self.root_dir, "scripts/importers/import_topology.py"),
             graphml_path,
             output_path,
