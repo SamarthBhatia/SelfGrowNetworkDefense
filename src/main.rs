@@ -120,7 +120,7 @@ fn resolve_runtime() -> RuntimeContext {
     }
 }
 
-fn parse_cli<I>(mut args: I) -> Result<RuntimeContext, String> 
+fn parse_cli<I>(mut args: I) -> Result<RuntimeContext, String>
 where
     I: Iterator<Item = String>,
 {
@@ -189,12 +189,20 @@ mod tests {
     #[test]
     fn test_parse_cli_flags() {
         let args: Vec<String> = vec![
-            "--telemetry".into(), "out.jsonl".into(),
-            "--stimulus".into(), "stim.jsonl".into()
+            "--telemetry".into(),
+            "out.jsonl".into(),
+            "--stimulus".into(),
+            "stim.jsonl".into(),
         ];
         let context = parse_cli(args.into_iter()).expect("parse success");
-        assert_eq!(context.telemetry_path.unwrap().to_str().unwrap(), "out.jsonl");
-        assert_eq!(context.stimulus_path.unwrap().to_str().unwrap(), "stim.jsonl");
+        assert_eq!(
+            context.telemetry_path.unwrap().to_str().unwrap(),
+            "out.jsonl"
+        );
+        assert_eq!(
+            context.stimulus_path.unwrap().to_str().unwrap(),
+            "stim.jsonl"
+        );
     }
 
     #[test]

@@ -83,7 +83,7 @@ mod tests {
         assert!(content.contains("\"topic\":\"test_topic\""));
         assert!(content.contains("\"value\":0.5"));
         assert!(content.contains("\"step\":10"));
-        
+
         remove_file(path).ok();
     }
 

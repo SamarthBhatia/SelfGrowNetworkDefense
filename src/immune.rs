@@ -217,9 +217,9 @@ mod tests {
         let tpm = TPM::new("valid_node".to_string());
         let step = 10;
         let payload = "consensus:activator:1.0:target";
-        
+
         let attestation = tpm.attest(step, payload).expect("Attestation failed");
-        
+
         // Valid verification
         assert!(TPM::verify(&attestation, step, payload));
         // Valid with 1 step delay
@@ -230,7 +230,7 @@ mod tests {
     fn test_compromised_tpm() {
         let mut tpm = TPM::new("bad_node".to_string());
         tpm.compromised = true;
-        
+
         assert!(tpm.attest(10, "payload").is_none());
     }
 
@@ -239,9 +239,9 @@ mod tests {
         let tpm = TPM::new("replay_node".to_string());
         let step = 10;
         let payload = "consensus:activator:1.0:target";
-        
+
         let attestation = tpm.attest(step, payload).unwrap();
-        
+
         // Too late (2 steps later)
         assert!(!TPM::verify(&attestation, step + 2, payload));
         // Future step (impossible)
@@ -253,9 +253,9 @@ mod tests {
         let tpm = TPM::new("tamper_node".to_string());
         let step = 10;
         let payload = "original_payload";
-        
+
         let attestation = tpm.attest(step, payload).unwrap();
-        
+
         assert!(!TPM::verify(&attestation, step, "modified_payload"));
     }
 
@@ -263,17 +263,17 @@ mod tests {
     fn test_serialization_roundtrip() {
         let tpm = TPM::new("persist_node".to_string());
         let json = serde_json::to_string(&tpm).expect("Serialize");
-        
+
         // Deserialize
         let loaded_tpm: TPM = serde_json::from_str(&json).expect("Deserialize");
-        
+
         assert_eq!(tpm.cell_id, loaded_tpm.cell_id);
         assert_eq!(tpm.secret_bytes, loaded_tpm.secret_bytes);
-        
+
         // Verify loaded TPM can attest and verify
         let att = loaded_tpm.attest(5, "data").unwrap();
         assert!(TPM::verify(&att, 5, "data"));
-        
+
         // Verify PKI has the key (re-registered on deserialize)
         let pki = get_pki().lock().unwrap();
         assert!(pki.contains_key("persist_node"));
@@ -297,7 +297,7 @@ mod property_tests {
         ) {
             let tpm = TPM::new("fuzz_node".to_string());
             let attestation = tpm.attest(step, &payload);
-            
+
             if let Some(mut att) = attestation {
                 // 1. Happy path: if steps align, should verify
                 if current_step >= step && current_step <= step + 1 {
@@ -310,7 +310,7 @@ mod property_tests {
                 if payload != bad_payload {
                     prop_assert!(!TPM::verify(&att, step, &bad_payload));
                 }
-                
+
                 // 3. Tampered signature
                 if byte_mutation_idx < att.signature.len() {
                     let original_byte = att.signature[byte_mutation_idx];

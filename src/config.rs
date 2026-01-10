@@ -387,8 +387,16 @@ topology:
         let mut config = ScenarioConfig::default();
         config.threat_profile.background_threat = 0.1;
         config.spikes = vec![
-            ThreatSpike { step: 5, intensity: 0.2, duration: 5 },  // 5-9
-            ThreatSpike { step: 7, intensity: 0.3, duration: 2 },  // 7-8
+            ThreatSpike {
+                step: 5,
+                intensity: 0.2,
+                duration: 5,
+            }, // 5-9
+            ThreatSpike {
+                step: 7,
+                intensity: 0.3,
+                duration: 2,
+            }, // 7-8
         ];
 
         // Step 4: Base only

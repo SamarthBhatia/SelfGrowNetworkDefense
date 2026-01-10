@@ -342,8 +342,8 @@ mod tests {
             topic: "A".into(),
             factor: 2.0,
         });
-        
-        // Commands are rebuilt or modified in place. 
+
+        // Commands are rebuilt or modified in place.
         // Note: apply_mutation impl for IncreaseStimulus iterates mutably over values.
         let cmds_step1 = schedule.commands.get(&1).unwrap();
         assert_eq!(cmds_step1[0].value, 2.0);
@@ -359,7 +359,7 @@ mod tests {
         // Now flattened: [cmd2 (now step 1), cmd1 (now step 2)]
         // Rebuilt into map: cmd2 is at step 1, cmd1 is at step 2.
         // This verifies that SwapStimulus correctly exchanges the timing of events.
-        
+
         let cmds_step1_after = schedule.commands.get(&1).unwrap();
         assert_eq!(cmds_step1_after[0].topic, "B"); // Now B at step 1
     }

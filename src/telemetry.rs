@@ -212,17 +212,22 @@ mod tests {
     fn test_jsonl_persistence() {
         let tmp_file = NamedTempFile::new().expect("temp file");
         let path = tmp_file.path().to_owned();
-        
+
         // Re-open in sink (append mode)
         let mut sink = JsonlSink::create(&path).expect("create sink");
 
-        let event1 = TelemetryEvent::Scenario { name: "test".into() };
-        let event2 = TelemetryEvent::StepSummary { 
-            step: 1, 
-            threat_score: 0.5, 
-            cell_count: 10, 
+        let event1 = TelemetryEvent::Scenario {
+            name: "test".into(),
+        };
+        let event2 = TelemetryEvent::StepSummary {
+            step: 1,
+            threat_score: 0.5,
+            cell_count: 10,
             population_stats: None,
-            topology_stats: Some(TopologyStats { avg_degree: 2.5, isolation_count: 1 }),
+            topology_stats: Some(TopologyStats {
+                avg_degree: 2.5,
+                isolation_count: 1,
+            }),
         };
 
         sink.record(SystemTime::now(), event1);
@@ -240,7 +245,10 @@ mod tests {
     #[test]
     fn test_topology_stats_aggregation() {
         let mut sink = InMemorySink::default();
-        let stats = TopologyStats { avg_degree: 3.0, isolation_count: 5 };
+        let stats = TopologyStats {
+            avg_degree: 3.0,
+            isolation_count: 5,
+        };
         let event = TelemetryEvent::StepSummary {
             step: 10,
             threat_score: 0.1,
@@ -248,9 +256,9 @@ mod tests {
             population_stats: None,
             topology_stats: Some(stats),
         };
-        
+
         sink.record(SystemTime::now(), event);
-        
+
         let snapshots = sink.events();
         assert_eq!(snapshots.len(), 1);
         if let TelemetryEvent::StepSummary { topology_stats, .. } = &snapshots[0].event {
@@ -261,21 +269,26 @@ mod tests {
             panic!("Wrong event type");
         }
     }
-    
+
     #[test]
     fn test_persistence_error_handling() {
         // Try to create a sink on a directory path, which should fail or fail to write
         let tmp_dir = tempfile::tempdir().expect("temp dir");
         let path = tmp_dir.path().to_owned(); // This is a directory
-        
-        // On some OS, opening a dir with OpenOptions might fail or succeed. 
+
+        // On some OS, opening a dir with OpenOptions might fail or succeed.
         // If create succeeds (unlikely for directory), write should fail.
-        
+
         if let Ok(mut sink) = JsonlSink::create(&path) {
             // If we somehow opened it, writing should definitely fail or be handled
             // TelemetrySink::record swallows errors to stderr. We can't easily assert stderr.
             // But we can check if it panics (it shouldn't).
-            sink.record(SystemTime::now(), TelemetryEvent::CellDied { cell_id: "A".into() });
+            sink.record(
+                SystemTime::now(),
+                TelemetryEvent::CellDied {
+                    cell_id: "A".into(),
+                },
+            );
         } else {
             // Expected failure to create sink on directory
         }

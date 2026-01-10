@@ -1,5 +1,5 @@
-use std::process::Command;
 use std::fs;
+use std::process::Command;
 use tempfile::NamedTempFile;
 
 #[test]
@@ -25,18 +25,46 @@ fn test_adversarial_cycle_cli() {
     // Setup metrics (dummy data)
     let mut wtr = csv::Writer::from_path(metrics_csv.path()).expect("create writer");
     wtr.write_record(&[
-        "step","threat_score","cell_count","replications","deaths","signals_total",
-        "lineage_shifts_total","stimulus_total","top_signal_topic","top_signal_count",
-        "top_lineage","top_lineage_count","signals_by_topic","lineage_shifts_by_lineage",
-        "stimulus_by_topic","population_stats","topology_stats"
-    ]).expect("write header");
-    
+        "step",
+        "threat_score",
+        "cell_count",
+        "replications",
+        "deaths",
+        "signals_total",
+        "lineage_shifts_total",
+        "stimulus_total",
+        "top_signal_topic",
+        "top_signal_count",
+        "top_lineage",
+        "top_lineage_count",
+        "signals_by_topic",
+        "lineage_shifts_by_lineage",
+        "stimulus_by_topic",
+        "population_stats",
+        "topology_stats",
+    ])
+    .expect("write header");
+
     wtr.write_record(&[
-        "0", "0.5", "10", "1", "0", "5", "0", "0.0", 
-        "activator", "5", "stem", "1",
+        "0",
+        "0.5",
+        "10",
+        "1",
+        "0",
+        "5",
+        "0",
+        "0.0",
+        "activator",
+        "5",
+        "stem",
+        "1",
         r#"{"activator":5}"#, // Raw string for JSON
-        "{}", "{}", "", ""
-    ]).expect("write row");
+        "{}",
+        "{}",
+        "",
+        "",
+    ])
+    .expect("write row");
     wtr.flush().expect("flush");
 
     // Setup initial state
@@ -61,16 +89,12 @@ fn test_adversarial_cycle_cli() {
         .arg("test-cand")
         .arg("--scenario")
         .arg("docs/examples/baseline-growth.yaml") // Scenario ref
-        
         .arg("--metrics")
         .arg(metrics_csv.path())
-        
         .arg("--emit-json")
         .arg(output_json.path())
-        
         .arg("--state")
         .arg(state_json.path())
-        
         .status()
         .expect("failed to run binary");
 
