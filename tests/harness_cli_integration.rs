@@ -24,7 +24,7 @@ fn test_adversarial_cycle_cli() {
 
     // Setup metrics (dummy data)
     let mut wtr = csv::Writer::from_path(metrics_csv.path()).expect("create writer");
-    wtr.write_record(&[
+    wtr.write_record([
         "step",
         "threat_score",
         "cell_count",
@@ -45,7 +45,7 @@ fn test_adversarial_cycle_cli() {
     ])
     .expect("write header");
 
-    wtr.write_record(&[
+    wtr.write_record([
         "0",
         "0.5",
         "10",

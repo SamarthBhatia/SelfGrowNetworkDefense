@@ -19,7 +19,7 @@ fn validate_example_configs() {
         if file_name.starts_with('.') {
             continue;
         }
-        if path.extension().map_or(false, |ext| ext == "yaml") {
+        if path.extension().is_some_and(|ext| ext == "yaml") {
             println!("Validating {}", path.display());
             config::load_from_path(&path).expect("failed to load config");
             found += 1;

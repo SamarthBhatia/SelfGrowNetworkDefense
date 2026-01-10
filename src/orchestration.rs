@@ -25,21 +25,21 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
     ) -> Self {
         let mut neighbors = HashMap::new();
 
-        if matches!(topology_config.strategy, TopologyStrategy::Graph) {
-            if let Some(links) = &topology_config.explicit_links {
-                for link in links {
-                    if link.len() >= 2 {
-                        let u = &link[0];
-                        let v = &link[1];
-                        neighbors
-                            .entry(u.clone())
-                            .or_insert_with(Vec::new)
-                            .push(v.clone());
-                        neighbors
-                            .entry(v.clone())
-                            .or_insert_with(Vec::new)
-                            .push(u.clone());
-                    }
+        if matches!(topology_config.strategy, TopologyStrategy::Graph)
+            && let Some(links) = &topology_config.explicit_links
+        {
+            for link in links {
+                if link.len() >= 2 {
+                    let u = &link[0];
+                    let v = &link[1];
+                    neighbors
+                        .entry(u.clone())
+                        .or_insert_with(Vec::new)
+                        .push(v.clone());
+                    neighbors
+                        .entry(v.clone())
+                        .or_insert_with(Vec::new)
+                        .push(u.clone());
                 }
             }
         }
@@ -716,7 +716,7 @@ mod tests {
         assert_eq!(app.cells[0].id, "B");
 
         // Verify neighbor maps updated
-        assert!(app.neighbors.get("A").is_none());
+        assert!(!app.neighbors.contains_key("A"));
         let b_neighbors = app.neighbors.get("B").unwrap();
         assert!(b_neighbors.is_empty());
 

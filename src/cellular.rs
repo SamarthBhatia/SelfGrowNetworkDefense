@@ -855,12 +855,12 @@ mod property_tests {
             // If the vote was counted (val > 1.5), it would Disconnect(target).
             // So if consensus_val > 1.5, we assert action != Disconnect(target).
 
-            if consensus_val > 1.5 {
-                 if let CellAction::Disconnect(target) = action {
-                     // If it disconnects from the TARGET, that means it accepted the vote.
-                     prop_assert_ne!(target, target_id, "Accepted unauthenticated consensus vote!");
-                     // It IS allowed to disconnect from the SOURCE (fake_source_id) due to penalty.
-                 }
+            if consensus_val > 1.5
+                 && let CellAction::Disconnect(target) = action
+            {
+                // If it disconnects from the TARGET, that means it accepted the vote.
+                prop_assert_ne!(target, target_id, "Accepted unauthenticated consensus vote!");
+                // It IS allowed to disconnect from the SOURCE (fake_source_id) due to penalty.
             }
         }
     }
