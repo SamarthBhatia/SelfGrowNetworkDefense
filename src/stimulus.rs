@@ -134,6 +134,10 @@ impl StimulusSchedule {
                 }
 
                 if *event_index1 < all_commands.len() && *event_index2 < all_commands.len() {
+                    let step1 = all_commands[*event_index1].step;
+                    let step2 = all_commands[*event_index2].step;
+                    all_commands[*event_index1].step = step2;
+                    all_commands[*event_index2].step = step1;
                     all_commands.swap(*event_index1, *event_index2);
                 }
 
@@ -352,31 +356,12 @@ mod tests {
             event_index2: 1,
         });
 
-        // Now flattened: [cmd2, cmd1]
-        // But rebuilt into map:
-        // cmd2 has step 2. cmd1 has step 1.
-        // Wait, swap assumes we are swapping *positions* in the list, but if `step` is intrinsic to the command,
-        // swapping them in the vector and then rebuilding the map based on `step` puts them back where they belong!
-        // Unless the mutation logic changes the step?
-        // Let's check `SwapStimulus` impl in `apply_mutation`:
-        // "all_commands.swap(*event_index1, *event_index2);"
-        // "for cmd in all_commands { new_commands.entry(cmd.step)... }"
-        // So swapping index DOES NOTHING if `step` is not also swapped.
-        // The implementation of `SwapStimulus` in `src/stimulus.rs` seems flawed if the intention is to swap timing.
-        // But if `SwapStimulus` is just swapping order in the vector passed to something else... but here it reconstructs the map.
-        // If the intention of Swap is to swap *what happens at time T1* with *what happens at time T2*, we must swap the steps.
-        
-        // However, I am testing the *current* implementation.
-        // The current implementation swaps the commands in the list, but since they retain their `step` field, they go back to their original slots in the BTreeMap.
-        // So SwapStimulus is effectively a no-op regarding schedule timing in the current impl.
-        // Effectively it might reorder commands *within the same step* if indices point to same step, or if stability matters.
-        
-        // If this is a bug, I should probably fix it or note it. 
-        // But the prompt says "Add targeted tests... mutation rewrites". 
-        // I will assert the current behavior.
+        // Now flattened: [cmd2 (now step 1), cmd1 (now step 2)]
+        // Rebuilt into map: cmd2 is at step 1, cmd1 is at step 2.
+        // This verifies that SwapStimulus correctly exchanges the timing of events.
         
         let cmds_step1_after = schedule.commands.get(&1).unwrap();
-        assert_eq!(cmds_step1_after[0].topic, "A"); // Still A at step 1
+        assert_eq!(cmds_step1_after[0].topic, "B"); // Now B at step 1
     }
 }
 

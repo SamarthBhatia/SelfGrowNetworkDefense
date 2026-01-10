@@ -139,3 +139,74 @@ Track every project session so we resume exactly where we stopped. Update this d
     - `DEMO.md` (Updated)
 - **Next**:
     - Package the final deliverable.
+
+### 2026-01-08 — Session 70 (Full Project Review)
+- **Focus**: Independent audit of the entire Rust/Python stack to judge thesis readiness.
+- **Plan**:
+    - Inspect code modules, docs, and data scripts for completeness and consistency.
+    - Review the testing strategy (Rust + Python + integration harnesses) for coverage/rigor.
+    - Summarize findings, blockers, and concrete next steps for thesis-grade polish.
+- **Actions**:
+    - Read the high-level documentation (`README.md`, `docs/phase4-report.md`) and walked the Rust modules (`cellular`, `immune`, `orchestration`, `stimulus`, `adversarial`) plus harness binaries to understand current guarantees.
+    - Ran `cargo test` to verify the 58 unit/property/integration tests and inspected harness + script scaffolding for traceability.
+- **Results**:
+    - `cargo test` passes but still emits lints (unused `mut`, unused var) which undermines “clean build” expectations.
+    - Identified correctness gaps: the `SwapStimulus` mutation is effectively a no-op because rebuilt schedules reinsert commands by their original `step`; `MorphogeneticApp::initialize_topology` is never invoked so Graph strategies without explicit links start with zero connectivity (no consensus/propagation); demo documentation work is still pending per roadmap.
+- **Next**:
+    - Implement a real swap (swap `step`/metadata before rebuilding) and extend tests to catch regressions.
+    - Decide whether Graph mode should auto-initialize (call `initialize_topology` in `new`) or document the strict requirement for explicit link lists.
+    - Clean up the lingering test warnings and finish the DEMO package called out in the roadmap.
+
+### 2026-01-08 — Session 75 (Bug Fixes & Refinement)
+- **Focus**: Addressing correctness gaps and build lints identified in project review.
+- **Actions**:
+    - **Fixed `Mutation::SwapStimulus`**: Modified `src/stimulus.rs` to correctly swap `step` fields between stimulus events, ensuring temporal mutations are effective.
+    - **Graph Topology Bootstrap**: Updated `MorphogeneticApp::new` in `src/orchestration.rs` to call `initialize_topology()` when no explicit links are provided, preventing inert Graph simulations.
+    - **Cleaned Build Warnings**: Resolved unused `mut` and unused variable lints in `src/orchestration.rs` to ensure a "thesis-grade" clean build.
+    - **Verification**: Added `test_graph_topology_auto_initialization` and updated `test_mutation_increase_and_swap` to verify fixes. All 59 Rust tests passed.
+- **Results**:
+    - Build is clean (modulo incremental cache warnings on specific filesystems).
+    - Adversarial harness now correctly explores temporal disruptions.
+    - Graph mode is functional by default.
+- **Next**: Finalize DEMO package and prepare for final handoff.
+
+### 2026-01-08 — Session 76 (Follow-up Review)
+- **Focus**: Verify the newly landed fixes (Stimulus swap, Graph bootstrap, lint cleanup) and reassess overall thesis readiness.
+- **Plan**:
+    - Inspect the modified Rust modules and associated tests to confirm correctness and spot regressions.
+    - Re-run `cargo test` to validate the updated suite.
+    - Capture findings, remaining gaps, and next actions for DEMO packaging.
+- **Actions**:
+    - Reviewed `src/stimulus.rs`/`src/orchestration.rs` diffs plus the new/updated unit tests to confirm intent.
+    - Executed `cargo test` (full workspace) to ensure no regressions; confirmed the suite now reports 59 tests passing (not counting filesystem hard-link warnings).
+- **Results**:
+    - Fixes behave as described, but a stray debug comment (`// test`) was left at the end of `src/stimulus.rs`, which breaks doc polish guidelines.
+    - No new logic regressions detected; Graph mode now initializes neighbors and SwapStimulus swaps timings as expected.
+- **Next**:
+    - Remove the leftover debug comment and re-run `cargo test`; fold this cleanup into the DEMO/documentation polish milestone.
+
+### 2026-01-08 — Session 77 (Post-Fix QA)
+- **Focus**: Confirm the stray comment cleanup landed (or fix it), re-run tests, and provide the updated review summary.
+- **Plan**:
+    - Inspect `src/stimulus.rs`, `src/orchestration.rs`, and relevant tests for any remaining debugging artifacts.
+    - Execute `cargo test` to ensure the suite still passes cleanly.
+    - Summarize findings for the user and outline any remaining polish work.
+- **Actions**:
+    - Removed the lingering `// test` comment from `src/stimulus.rs`.
+    - Re-ran `cargo test` across the workspace (59 tests) to ensure the cleanup did not introduce regressions.
+- **Results**:
+    - Test suite passes; only external hard-link warnings remain (filesystem related).
+    - Rust sources are now free of stray debug comments, restoring doc/code polish expectations.
+- **Next**:
+    - Resume DEMO.md finalization and ensure any future tweaks also keep the tree lint-clean.
+
+### 2026-01-10 — Session 76 (Final Polish & Verification)
+- **Focus**: Finalizing the DEMO package and CI integration for one-command verification.
+- **Actions**:
+    - **Unified Verification Script**: Created `scripts/verify_all.sh` to execute Rust tests, Python pipelines, and Smoke tests in a single pass.
+    - **CI Integration**: Updated `.github/workflows/ci.yml` to utilize `verify_all.sh`, ensuring CI matches local validation exactly.
+    - **Documentation**: Updated `DEMO.md` with a "System Verification" section guiding users to the new script.
+- **Results**:
+    - The project now has a single "truth" command for verification.
+    - `DEMO.md` is feature-complete for the thesis submission.
+- **Next**: Submit.

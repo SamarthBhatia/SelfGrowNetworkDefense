@@ -97,3 +97,16 @@ python3 scripts/run_realism_suite.py
 **Output:**
 - Matrix CSV: `target/realism_results/matrix_results.csv`
 - Demonstrates consistent defense activation (saturation) across 40-node and 11-node networks under massive botnet pressure.
+
+
+## 7. System Verification
+To verify the integrity of the entire stack (Rust kernel, Python pipelines, and Demo automation) before presentation, execute the single-command verification suite:
+
+```bash
+bash scripts/verify_all.sh
+```
+
+This harness executes:
+1.  **Rust Unit/Integration Tests**: Validates cellular logic, consensus, and stimulus engine.
+2.  **Python Pipeline Tests**: Checks topology importers, analytics, and plotting scripts.
+3.  **End-to-End Smoke Tests**: Runs the attack simulation, evolutionary loop, and demo CLI wrappers in a safe sandbox.

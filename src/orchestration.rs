@@ -41,20 +41,24 @@ impl<TSink: TelemetrySink> MorphogeneticApp<TSink> {
                             .push(u.clone());
                     }
                 }
-            } else {
-                // Fallback: fully connected or random initialization?
-                // The original code didn't initialize explicit links, relying on dynamic formation.
-                // We keep it empty if no explicit links are provided, allowing dynamic growth.
             }
         }
 
-        Self {
+        let mut app = Self {
             cells,
             telemetry,
             topology_config,
             signal_bus: SignalBus::default(),
             neighbors,
+        };
+
+        if matches!(app.topology_config.strategy, TopologyStrategy::Graph)
+            && app.topology_config.explicit_links.is_none()
+        {
+            app.initialize_topology();
         }
+
+        app
     }
 
     #[allow(dead_code)]
@@ -657,7 +661,7 @@ mod tests {
     #[test]
     fn test_blacklist_behavior() {
         // Setup: A -> B. A is blacklisted by B.
-        let mut cell_a = SecurityCell::new("A");
+        let cell_a = SecurityCell::new("A");
         let mut cell_b = SecurityCell::new("B");
         cell_b.genome.signal_emission_threshold = 0.4;
         cell_b.state.blacklist.push("A".to_string());
@@ -717,7 +721,7 @@ mod tests {
             if (source == "A" && target == "B") || (source == "B" && target == "A")));
         assert!(link_removed, "LinkRemoved event should be recorded");
         
-        let cell_died = events.iter().any(|e| matches!(&e.event, TelemetryEvent::CellDied { cell_id } if cell_id == "A"));
+        let _cell_died = events.iter().any(|e| matches!(&e.event, TelemetryEvent::CellDied { cell_id } if cell_id == "A"));
         // CellDied is recorded during handle_action only if Die action returned?
         // Ah, step() loop: "Remove dead cells". But TelemetryEvent::CellDied is recorded in handle_action(CellAction::Die).
         // If I manually set .state.dead = true, handle_action isn't called for Die action.
@@ -747,5 +751,19 @@ mod tests {
         // So LinkRemoved IS verified above.
         
         // I won't assert CellDied here because I bypassed the natural death mechanism.
+    }
+
+    #[test]
+    fn test_graph_topology_auto_initialization() {
+        let cells = vec![SecurityCell::new("A"), SecurityCell::new("B")];
+        let topology = TopologyConfig {
+            strategy: TopologyStrategy::Graph,
+            explicit_links: None,
+        };
+        let app = MorphogeneticApp::<InMemorySink>::new(cells, InMemorySink::default(), topology);
+        
+        // neighbors should have A-B link due to initialize_topology's linear chain fallback
+        assert!(app.neighbors.contains_key("A"));
+        assert!(app.neighbors.get("A").unwrap().contains(&"B".to_string()));
     }
 }

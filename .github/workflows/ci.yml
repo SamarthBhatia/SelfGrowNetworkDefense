@@ -21,9 +21,6 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Tests
-        run: cargo test
-
       - name: Install Python
         uses: actions/setup-python@v5
         with:
@@ -33,18 +30,5 @@ jobs:
         run: |
           pip install pandas numpy networkx pyyaml matplotlib
 
-      - name: Python Tests
-        run: |
-          python3 tests/test_importers.py
-          python3 tests/test_analytics.py
-          python3 tests/test_plotting_scripts.py
-          python3 tests/test_realism_suite.py
-          # Need to build debug binary for validation suite test
-          cargo build --bin morphogenetic-security
-          python3 tests/test_validation_suite.py
-
-      - name: Attack Simulation Smoke Test
-        run: bash scripts/run_attack_simulation.sh
-
-      - name: Evolution Smoke Test
-        run: bash scripts/run_evolution_smoke_test.sh
+      - name: System Verification Suite
+        run: bash scripts/verify_all.sh
